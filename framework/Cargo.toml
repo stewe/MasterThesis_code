@@ -1,0 +1,4 @@
+[package]
+name = "framework"
+version = "0.1.0"
+authors = ["Stefan Wendt <stefanwendt@posteo.de>"]
