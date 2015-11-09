@@ -1,7 +1,10 @@
 extern crate framework;
 
+
 #[test]
 fn it_works() {
-    //assert!(false); // test fails
-    assert_eq!(4, framework::foo(2));
+    //let res: String =
+    framework::req("tcp:...", &['h', 'e', 'l', 'l', 'o']);
+    //assert_eq!(res, "hello");
+    assert!(true);
 }

@@ -9,4 +9,6 @@ fn main() {
     println!("Hello World!!11einseinself");
     println!("... nothing to do :/");
     framework::sub("endpoint", &["topic", "filter"]);
+
+    framework::req("tcp://...:1234", &['h', 'e', 'l', 'l', 'o']);
 }

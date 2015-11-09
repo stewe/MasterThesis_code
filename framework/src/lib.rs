@@ -1,16 +1,19 @@
 //! # Microservice framework for sensor subscription and cache requesting
 //! some more explanation?
 
-// mod sensor;
-// mod cache;
-mod handler;
+mod sensor;
+mod cache;
+mod manager;
 
-pub use handler::{sub};
+mod messaging;
+
+pub use manager::{sub};
+pub use messaging::{req};
 
 
 
-#[test]
+//#[test]
 fn it_works() {
-    //assert!(false); // test fails
-    // assert_eq!(4, foo(2));
+    assert!(true); // test fails
+
 }
