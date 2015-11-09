@@ -1,0 +1,7 @@
+[package]
+name = "cache"
+version = "0.1.0"
+authors = ["Stefan Wendt <stefanwendt@posteo.de>"]
+
+[dependencies.zmq]
+git = "https://github.com/erickt/rust-zmq.git"
