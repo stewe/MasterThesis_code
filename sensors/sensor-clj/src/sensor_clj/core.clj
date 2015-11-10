@@ -2,11 +2,13 @@
   (:gen-class)
   (:require [zeromq.zmq :as zmq]))
 
+(def addr "tcp://*:5556")
+
 (defn -main []
-  (println "Sensor started.")
+  (println "Sensor started on " addr)
   (let [context (zmq/zcontext)]
     (with-open [publisher (doto (zmq/socket context :pub)
-                                (zmq/bind "tcp://*:5556"))]
+                                (zmq/bind addr))]
     (while (not (.. Thread currentThread isInterrupted))
           (let [zipcode (rand-int 100000)
                 temperature (- (rand-int 215) 80)
