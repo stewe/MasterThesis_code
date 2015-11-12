@@ -2,7 +2,7 @@
 // subscriber: zmq_socket (context, ZMQ_SUB); zmq_connect (socket, "tcp://*:5556"); zmq_setsockopt (socket, ZMQ_SUBSCRIBE, filter, strlen (filter)); zmq_recv
 pub fn sub (endpoint: &str, filters: &[&str]) {}
 
-// zmq_setsockopt (subscriber, ZMQ_UNSUBSCRIBE, filter, strlen (filter));
+// zmq_setsockopt (subscriber, ZMQ_SUBSCRIBE, filter, strlen (filter));
 pub fn unsub (endpoint: &str, filters: &[&str]) {}
 
 // zmq_socket (context, ZMQ_REP/ZMQ_REQ); zmq_bind (socket, "tcp://*:5555"); zmq_send / zmq_recv
