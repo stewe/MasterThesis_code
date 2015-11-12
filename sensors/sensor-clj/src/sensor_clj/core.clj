@@ -10,10 +10,10 @@
     (with-open [publisher (doto (zmq/socket context :pub)
                                 (zmq/bind addr))]
     (while (not (.. Thread currentThread isInterrupted))
-          (let [zipcode (rand-int 100000)
+          (let [zipcode (rand-int 3)
                 temperature (- (rand-int 215) 80)
                 relhumidity (+ (rand-int 50) 10)
-                msg (format "%05d %d %d" zipcode temperature relhumidity)]
+                msg (format "%d %d %d" zipcode temperature relhumidity)]
             (zmq/send-str publisher msg)
             (println "sent" msg)
             (Thread/sleep 10000)
