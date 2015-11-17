@@ -1,17 +1,18 @@
 extern crate zmq;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
-use std::thread::{JoinHandle, sleep_ms};
+// use std::thread::{JoinHandle, sleep_ms};
 use zmq::{Socket, Context};
 
 // TODO remove when no longer needed
-fn atoi(s: &str) -> i64 {
-    s.parse().unwrap()
-}
+// fn atoi(s: &str) -> i64 {
+//     s.parse().unwrap()
+// }
 
+#[derive(Clone)]
 struct Sensor<'a> {
     id: &'a str,
     addr: &'a str,
@@ -29,15 +30,15 @@ impl<'a> Sensor<'a> {
     }
 }
 
-impl<'a> Clone for Sensor<'a> {
-    fn clone(&self) -> Sensor<'a> {
-        Sensor {
-            id: self.id,
-            addr: self.addr,
-            filters: self.filters.clone(),
-        }
-    }
-}
+// impl<'a> Clone for Sensor<'a> {
+//     fn clone(&self) -> Sensor<'a> {
+//         Sensor {
+//             id: self.id,
+//             addr: self.addr,
+//             filters: self.filters.clone(),
+//         }
+//     }
+// }
 
 fn init_sensors_info<'a>() -> Vec<Sensor<'a>> {
     // TODO read congig file and get sensors
@@ -78,36 +79,36 @@ fn main() {
 
     let mut threads = vec![];
 
-    // let data = Arc::new(Mutex::new(&sensor_sockets));
-    // let data = data.clone();
-
     let (msg_tx, msg_rx) = channel();
     let mut command_txs: HashMap<&str, Sender<&str>> = HashMap::new();
+    let mut queues = HashMap::new();
 
     for sensor in sensors_info.iter(){
         let sensor: Sensor = sensor.clone();
-        let id = sensor.id.clone(); // TODO necessary?
+        let id = sensor.id;
 
         let msg_tx = msg_tx.clone();
         let (command_tx, command_rx): (Sender<&str>, Receiver<&str>) = channel();
-            command_txs.insert(id, command_tx);
+        command_txs.insert(id, command_tx);
+
+        let msg_queue: VecDeque<String> = VecDeque::new();
+        // let mut q = Arc::new(Mutex::new(msg_queue));
+        queues.insert(id, Arc::new(Mutex::new(msg_queue)));
+        let q = queues.get(id).unwrap();
+        let q = q.clone();
 
         let handle = thread::spawn(move || {
+
+
             let mut ctx = Context::new();
             let mut socket = init_sensor_socket(&sensor, &mut ctx);
-
-    //
-    //         // println!("received {}", msg);
-    //         // let id = data.lock();//.unwrap().len();
             println!("Start thread and listen on socket id: {}", id);
-    //         let socket: &Socket = sensor_rx.recv().unwrap();
-    //
-    //         // loop {
-            for _ in 1..1000 {
+
+            loop {
                 // listen for commands ('exit')
                 match command_rx.try_recv() {
                     Ok(m) => {match m {
-                                EXIT => {println!("Closing {}", id); panic!("Thread {} shutdown.", id);},
+                                EXIT => panic!("Thread {} shutdown.", id),
                                 _ => println!("sensor {} received {}", id, m)
                             }},
                     Err(..) => {}
@@ -115,18 +116,38 @@ fn main() {
 
                 let msg = (&mut socket).recv_string(0).unwrap().unwrap();
                 println!("from sensor {} received msg  {}", id, msg);
+                // let s = msg.as_str().clone();
+                {
+                    let mut q = q.lock().unwrap();
+                    q.push_front(msg.clone()); // TODO remove clone()
+                }
 
-                msg_tx.send((id, msg)).unwrap();
-                // TODO decide whether send to master thread and put there into queue or put into queue here - !!! init queue for each sensor
+                msg_tx.send((id, msg)).unwrap(); // TODO remove, since we now have a queue
             }
         });
         threads.push(handle);
     }
 
-    let mut i = 0;
+    let (mut i, mut j) = (0, 0);
     loop {
+        // TODO adapt to queue - no receiving of channel messages anymore! ... keep channel for signals?
         let (_id, _msg) = msg_rx.recv().unwrap();
         println!("parent received id / msg: {}/{}", _id, _msg);
+        j += 1;
+        if j==6 {
+            println!("10th message received!!! {}", _id);
+            let q = queues.get(_id).unwrap();
+            match q.lock() {
+                Ok(qu) =>  {
+                    println!("size: {}", qu.len());
+                    // for s in qu.iter() {
+                    //     println!("\n\nmsg-queue {}: {}", _id, s);
+                    // }
+                    // println!("\nmsg-queue {}/0: {}", _id, qu.get(0).unwrap());
+                },
+                Err(_) => {}, // TODO do sth. useful?
+            }
+        }
         if _id == "sensor-clj" {
             i += 1;
             if i==3 {
@@ -144,9 +165,9 @@ fn main() {
         }
 
     }
-    for thread in threads {
-        thread.join().unwrap();
-    }
+    // for thread in threads {
+    //     thread.join().unwrap();
+    // }
 
 }
 
@@ -158,4 +179,6 @@ fn main() {
 // receive messages in new threads
 // listen to req socket and reply
 // queues for messages
+    // idea: ringbuffer (maybe with extrasize) with get(number) that does not remove elements
+    // -> spsc, conflicts with head element?
 // multiple microservices? keep track of filters / sensors
