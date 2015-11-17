@@ -1,10 +1,10 @@
 extern crate zmq;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
-use std::thread::JoinHandle;
+use std::thread::{JoinHandle, sleep_ms};
 use zmq::{Socket, Context};
 
 // TODO remove when no longer needed
@@ -29,6 +29,16 @@ impl<'a> Sensor<'a> {
     }
 }
 
+impl<'a> Clone for Sensor<'a> {
+    fn clone(&self) -> Sensor<'a> {
+        Sensor {
+            id: self.id,
+            addr: self.addr,
+            filters: self.filters.clone(),
+        }
+    }
+}
+
 fn init_sensors_info<'a>() -> Vec<Sensor<'a>> {
     // TODO read congig file and get sensors
     let sensor_clj = Sensor::new("sensor-clj",
@@ -42,72 +52,107 @@ fn init_sensors_info<'a>() -> Vec<Sensor<'a>> {
     sensors
 }
 
-// currently fails if cannot connect to one of the sensors
-fn init_sensors<'a>(sensors: Vec<Sensor<'a>>, ctx: &'a mut Context) -> HashMap<&'a str, Socket> {
-    let mut sockets: HashMap<&'a str, Socket> = HashMap::new();
-    for sensor in sensors {
+fn init_sensor_socket<'a, 'b>(sensor: &'a Sensor<'a>, ctx: &'b mut Context) -> Socket {
         let res: Result<Socket, zmq::Error> = ctx.socket(zmq::SUB);
         let mut socket: Socket = res.unwrap();
-        for filter in sensor.filters {
+        for filter in &sensor.filters {
             assert!(socket.set_subscribe(filter.as_bytes()).is_ok());
         }
         match socket.connect(sensor.addr) {
           Ok(()) => (),
           Err(e) => panic!(e) // TODO panic or tolerate???
         }
-        sockets.insert(sensor.id, socket);
-    }
-    println!("Initialized {} sockets to subscribeers.", sockets.len());
-    sockets
+    socket
 }
 
-// ----------------------------
+// ------------------------------------------------------------------------------------
 fn main() {
+
+    const EXIT: &'static str = "exit";
+
     println!("Cache started.");
 
     let sensors_info = init_sensors_info();
-    println!("{} sensor used.", &sensors_info.len());
-    let mut ctx = Context::new();
-    let mut sensor_sockets = init_sensors(sensors_info, &mut ctx);
-    println!("{} sockets used.", &sensor_sockets.len());
+    // let mut ctx = Context::new();
+    // let mut sensor_sockets = init_sensor_sockets(sensors_info, &mut ctx);
 
     let mut threads = vec![];
 
     // let data = Arc::new(Mutex::new(&sensor_sockets));
     // let data = data.clone();
 
-    // TODO try using channels!
+    let (msg_tx, msg_rx) = channel();
+    let mut command_txs: HashMap<&str, Sender<&str>> = HashMap::new();
 
+    for sensor in sensors_info.iter(){
+        let sensor: Sensor = sensor.clone();
+        let id = sensor.id.clone(); // TODO necessary?
 
-    let (tx, rx) = channel();
+        let msg_tx = msg_tx.clone();
+        let (command_tx, command_rx): (Sender<&str>, Receiver<&str>) = channel();
+            command_txs.insert(id, command_tx);
 
-    for (id, sensor) in sensor_sockets.iter_mut(){
         let handle = thread::spawn(move || {
-            let msg = rx.recv().unwrap();
-            println!("received {}", msg);
-            // let id = data.lock();//.unwrap().len();
-            // println!("id: {}", id);
-            // println!("Start thread for sensor {}.", id);
+            let mut ctx = Context::new();
+            let mut socket = init_sensor_socket(&sensor, &mut ctx);
 
+    //
+    //         // println!("received {}", msg);
+    //         // let id = data.lock();//.unwrap().len();
+            println!("Start thread and listen on socket id: {}", id);
+    //         let socket: &Socket = sensor_rx.recv().unwrap();
+    //
     //         // loop {
-    //         //         let msg = socket.recv_string(0).unwrap().unwrap();
-    //         //         let chks: Vec<i64> = msg.split(' ').map(|x| atoi(x)).collect();
-    //         //         // match id
-    //         //         let (_zipcode, temperature, _relhumidity) = (chks[0], chks[1], chks[2]);
-    //         //         println!("from sensor {} received zipcode {}, temperature {}, relhumidity {}.", id, _zipcode, temperature, _relhumidity);
+            for _ in 1..1000 {
+                // listen for commands ('exit')
+                match command_rx.try_recv() {
+                    Ok(m) => {match m {
+                                EXIT => {println!("Closing {}", id); panic!("Thread {} shutdown.", id);},
+                                _ => println!("sensor {} received {}", id, m)
+                            }},
+                    Err(..) => {}
                 }
-        );
+
+                let msg = (&mut socket).recv_string(0).unwrap().unwrap();
+                println!("from sensor {} received msg  {}", id, msg);
+
+                msg_tx.send((id, msg)).unwrap();
+                // TODO decide whether send to master thread and put there into queue or put into queue here - !!! init queue for each sensor
+            }
+        });
         threads.push(handle);
-        tx.send(10).unwrap();
     }
 
+    let mut i = 0;
+    loop {
+        let (_id, _msg) = msg_rx.recv().unwrap();
+        println!("parent received id / msg: {}/{}", _id, _msg);
+        if _id == "sensor-clj" {
+            i += 1;
+            if i==3 {
+                match command_txs.remove("sensor-clj") {
+                    Some(tx) => {
+                        // fails if channel is already dead (command_rx dropped or thread down)
+                        match tx.send(EXIT) {
+                            Ok(_) => println!("parent sent 'exit' to {}", _id),
+                            Err(e) => println!("Failed to send 'exit' to {}; error: {}", _id, e),
+                        }
+                    },
+                    None => println!("Couldn't find channel for {}", _id),
+                }
+            }
+        }
+
+    }
     for thread in threads {
-        // thread.join();
+        thread.join().unwrap();
     }
 
 }
 
 
+// let chks: Vec<i64> = msg.split(' ').map(|x| atoi(x)).collect();
+// let (_zipcode, temperature, _relhumidity) = (chks[0], chks[1], chks[2]);
 
 // init: subscribe to sensors
 // receive messages in new threads
