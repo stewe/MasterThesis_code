@@ -7,6 +7,8 @@ use std::thread;
 // use std::thread::{JoinHandle, sleep_ms};
 use zmq::{Socket, Context};
 
+const EXIT: &'static str = "exit";
+
 // TODO remove when no longer needed
 // fn atoi(s: &str) -> i64 {
 //     s.parse().unwrap()
@@ -54,8 +56,7 @@ fn init_sensors_info<'a>() -> Vec<Sensor<'a>> {
 }
 
 fn init_sensor_socket<'a, 'b>(sensor: &'a Sensor<'a>, ctx: &'b mut Context) -> Socket {
-        let res: Result<Socket, zmq::Error> = ctx.socket(zmq::SUB);
-        let mut socket: Socket = res.unwrap();
+        let mut socket: Socket = ctx.socket(zmq::SUB).unwrap();
         for filter in &sensor.filters {
             assert!(socket.set_subscribe(filter.as_bytes()).is_ok());
         }
@@ -66,19 +67,45 @@ fn init_sensor_socket<'a, 'b>(sensor: &'a Sensor<'a>, ctx: &'b mut Context) -> S
     socket
 }
 
+/// returns cached messages: index 0 is newest, len()-1 is oldest
+fn get_cached_msgs(n: usize, q: &Arc<Mutex<VecDeque<String>>>) -> Vec<String> {
+    let mut cached_msgs = Vec::with_capacity(n);
+    match q.lock() {
+        Ok(qu) =>  {
+            println!("size: {}", qu.len());
+            println!("TEST TEST TEST0: {}", qu.get(0).unwrap());
+            for i in 0..n {
+                match qu.get(i) {
+                    // Some(s) => cached_msgs.insert(n-i-1, s.clone()),
+                    Some(s) => cached_msgs.push(s.clone()),
+                    None => {},
+                }
+            }
+        },
+        Err(_) => println!("Couldn't access lock."), // TODO do sth. useful?
+    }
+    cached_msgs
+}
+
+fn remove_sensor(id: &str, command_txs: &mut HashMap<&str, Sender<&str>>) {
+    match command_txs.remove(id) {
+        Some(tx) => {
+            // fails if channel is already dead (command_rx dropped or thread down)
+            match tx.send(EXIT) {
+                Ok(_) => println!("parent sent 'exit' to {}", id),
+                Err(e) => println!("Failed to send 'exit' to {}; error: {}", id, e),
+            }
+        },
+        None => println!("Couldn't find channel for {}", id),
+    }
+}
+
 // ------------------------------------------------------------------------------------
 fn main() {
-
-    const EXIT: &'static str = "exit";
-
     println!("Cache started.");
 
     let sensors_info = init_sensors_info();
-    // let mut ctx = Context::new();
-    // let mut sensor_sockets = init_sensor_sockets(sensors_info, &mut ctx);
-
     let mut threads = vec![];
-
     let (msg_tx, msg_rx) = channel();
     let mut command_txs: HashMap<&str, Sender<&str>> = HashMap::new();
     let mut queues = HashMap::new();
@@ -92,14 +119,11 @@ fn main() {
         command_txs.insert(id, command_tx);
 
         let msg_queue: VecDeque<String> = VecDeque::new();
-        // let mut q = Arc::new(Mutex::new(msg_queue));
         queues.insert(id, Arc::new(Mutex::new(msg_queue)));
         let q = queues.get(id).unwrap();
         let q = q.clone();
 
         let handle = thread::spawn(move || {
-
-
             let mut ctx = Context::new();
             let mut socket = init_sensor_socket(&sensor, &mut ctx);
             println!("Start thread and listen on socket id: {}", id);
@@ -114,54 +138,57 @@ fn main() {
                     Err(..) => {}
                 }
 
-                let msg = (&mut socket).recv_string(0).unwrap().unwrap();
+                // listen for messages from sensor
+                // TODO IMPORTANT!!! think about how to queue and to get_cached_msgs! sensors - filters - queues 
+                let msg = (&mut socket).recv_string(0).unwrap().unwrap(); // TODO adapt to message format (e.g. google protocol buffers); handle in an approriate way!
                 println!("from sensor {} received msg  {}", id, msg);
-                // let s = msg.as_str().clone();
                 {
                     let mut q = q.lock().unwrap();
-                    q.push_front(msg.clone()); // TODO remove clone()
+                    q.push_front(msg.clone()); // TODO remove clone() when channel is removed
+                    // TODO control size of queue!
                 }
-
                 msg_tx.send((id, msg)).unwrap(); // TODO remove, since we now have a queue
             }
         });
         threads.push(handle);
     }
 
+    // thread for requests
+    // todo create channel and use it also to check whether thread is still alive!
+    thread::spawn(|| {
+        let mut ctx = Context::new();
+        let mut socket: Socket = ctx.socket(zmq::REP).unwrap();
+        socket.bind("tcp://*:5550").unwrap();
+
+        // example, adapt!
+        let mut msg = zmq::Message::new().unwrap();
+        loop {
+            socket.recv(&mut msg, 0).unwrap();
+            println!("Received request {}", msg.as_str().unwrap());
+            // parse and execute
+            socket.send_str("World", 0).unwrap();
+        }
+    });
+
     let (mut i, mut j) = (0, 0);
     loop {
         // TODO adapt to queue - no receiving of channel messages anymore! ... keep channel for signals?
         let (_id, _msg) = msg_rx.recv().unwrap();
-        println!("parent received id / msg: {}/{}", _id, _msg);
-        j += 1;
+        // println!("parent received id / msg: {}/{}", _id, _msg);
+
         if j==6 {
-            println!("10th message received!!! {}", _id);
+            println!("DEBUG DEBUG DEBUG DEBUG {}", _id);
             let q = queues.get(_id).unwrap();
-            match q.lock() {
-                Ok(qu) =>  {
-                    println!("size: {}", qu.len());
-                    // for s in qu.iter() {
-                    //     println!("\n\nmsg-queue {}: {}", _id, s);
-                    // }
-                    // println!("\nmsg-queue {}/0: {}", _id, qu.get(0).unwrap());
-                },
-                Err(_) => {}, // TODO do sth. useful?
-            }
+            let cached_msgs = get_cached_msgs(j, q);
+            println!("cached messages: {:?}", cached_msgs);
         }
         if _id == "sensor-clj" {
             i += 1;
             if i==3 {
-                match command_txs.remove("sensor-clj") {
-                    Some(tx) => {
-                        // fails if channel is already dead (command_rx dropped or thread down)
-                        match tx.send(EXIT) {
-                            Ok(_) => println!("parent sent 'exit' to {}", _id),
-                            Err(e) => println!("Failed to send 'exit' to {}; error: {}", _id, e),
-                        }
-                    },
-                    None => println!("Couldn't find channel for {}", _id),
-                }
+                remove_sensor("sensor-clj", &mut command_txs);
             }
+        } else {
+            j += 1;
         }
 
     }
