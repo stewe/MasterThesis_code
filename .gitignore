@@ -3,3 +3,4 @@ framework/target/
 cache/target/
 sensors/sensor-clj/target/
 cache-requester/target/
+.vagrant
