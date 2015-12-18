@@ -1,10 +1,12 @@
+extern crate time;
 extern crate zmq;
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 // use std::thread::{JoinHandle, sleep_ms};
+use time::{get_time, Timespec};
 use zmq::{Socket, Context};
 
 const EXIT: &'static str = "exit";
@@ -68,12 +70,13 @@ fn init_sensor_socket<'a, 'b>(sensor: &'a Sensor<'a>, ctx: &'b mut Context) -> S
 }
 
 /// returns cached messages: index 0 is newest, len()-1 is oldest
-fn get_cached_msgs(n: usize, q: &Arc<Mutex<VecDeque<String>>>) -> Vec<String> {
+fn get_cached_msgs<'a>(n: usize, q: &Arc<Mutex<VecDeque<(&'a str, &'a str, Timespec)>>>) -> Vec<(&'a str, &'a str, Timespec)> {
     let mut cached_msgs = Vec::with_capacity(n);
     match q.lock() {
         Ok(qu) =>  {
             println!("size: {}", qu.len());
-            println!("TEST TEST TEST0: {}", qu.get(0).unwrap());
+            println!("TEST TEST TEST0: {:?}", qu.get(0).unwrap());
+            // TODO adapt!!!
             for i in 0..n {
                 match qu.get(i) {
                     // Some(s) => cached_msgs.insert(n-i-1, s.clone()),
@@ -104,7 +107,22 @@ fn remove_sensor(id: &str, command_txs: &mut HashMap<&str, Sender<&str>>) {
 fn main() {
     println!("Cache started.");
 
+    static MAX_AGE: i32 = 30000; // 30 seconds TODO init
+
+    // TODO read and parse config file
     let sensors_info = init_sensors_info();
+    // Map<ep, Map<filter, Set<caller-id>>>: necessary for dynamic configuration
+    let mut filter_subs: HashMap<&str, HashMap<&str, HashSet<&str>>> = HashMap::new();
+    // TODO remove
+    let mut a_subs: HashMap<&str, HashSet<&str>> = HashMap::new();
+    a_subs.insert("a", ["clj-requester", "another-service"].iter().cloned().collect());
+    filter_subs.insert("sensor-java", a_subs);
+    let mut one_subs: HashMap<&str, HashSet<&str>> = HashMap::new();
+    one_subs.insert("1", ["clj-requester"].iter().cloned().collect());
+    one_subs.insert("2", ["clj-requester"].iter().cloned().collect());
+    filter_subs.insert("sensor-clj", one_subs);
+    println!("filter_subs: {:?}", filter_subs);
+
     let mut threads = vec![];
     let (msg_tx, msg_rx) = channel();
     let mut command_txs: HashMap<&str, Sender<&str>> = HashMap::new();
@@ -118,18 +136,20 @@ fn main() {
         let (command_tx, command_rx): (Sender<&str>, Receiver<&str>) = channel();
         command_txs.insert(id, command_tx);
 
-        let msg_queue: VecDeque<String> = VecDeque::new();
+        let msg_queue: VecDeque<(&str, &str, Timespec)> = VecDeque::new();
         queues.insert(id, Arc::new(Mutex::new(msg_queue)));
         let q = queues.get(id).unwrap();
         let q = q.clone();
 
         let handle = thread::spawn(move || {
+            // TODO try to use only one context, eg by creating sockets first, then passing it to the thread
+            // mabe compare https://github.com/erickt/rust-zmq/blob/master/examples/msgsend/main.rs
             let mut ctx = Context::new();
             let mut socket = init_sensor_socket(&sensor, &mut ctx);
             println!("Start thread and listen on socket id: {}", id);
 
             loop {
-                // listen for commands ('exit')
+                // listen for commands ('exit') TODO: add, remove filter
                 match command_rx.try_recv() {
                     Ok(m) => {match m {
                                 EXIT => panic!("Thread {} shutdown.", id),
@@ -139,12 +159,14 @@ fn main() {
                 }
 
                 // listen for messages from sensor
-                // TODO IMPORTANT!!! think about how to queue and to get_cached_msgs! sensors - filters - queues 
+                // TODO IMPORTANT!!! think about how to queue and to get_cached_msgs! sensors - filters - queues
                 let msg = (&mut socket).recv_string(0).unwrap().unwrap(); // TODO adapt to message format (e.g. google protocol buffers); handle in an approriate way!
-                println!("from sensor {} received msg  {}", id, msg);
+                let time: Timespec = get_time();
+                let filter = msg.split_whitespace().nth(0).unwrap();
+                println!("from sensor {} received msg  {} at {:?}", id, msg, time);
                 {
                     let mut q = q.lock().unwrap();
-                    q.push_front(msg.clone()); // TODO remove clone() when channel is removed
+                    q.push_front((filter, msg.as_str().clone(), time)); // TODO remove clone() when channel is removed
                     // TODO control size of queue!
                 }
                 msg_tx.send((id, msg)).unwrap(); // TODO remove, since we now have a queue
@@ -164,7 +186,9 @@ fn main() {
         let mut msg = zmq::Message::new().unwrap();
         loop {
             socket.recv(&mut msg, 0).unwrap();
-            println!("Received request {}", msg.as_str().unwrap());
+            let msg_str = msg.as_str().unwrap();
+            println!("Received request {}", msg_str);
+            // if msg_str.contains("remove")
             // parse and execute
             socket.send_str("World", 0).unwrap();
         }
