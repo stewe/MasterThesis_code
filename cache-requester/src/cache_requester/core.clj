@@ -2,6 +2,7 @@
   (:gen-class)
   (:require [zeromq.zmq :as zmq]))
 
+  (def caller-id "clj-requester")
   (def addr "tcp://127.0.0.1:5550")
   (def req-get "get INF (sensor-java, a, 3)")
 
