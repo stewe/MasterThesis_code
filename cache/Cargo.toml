@@ -1,5 +1,5 @@
 [package]
-name = "cache"
+name = "enclave_cache"
 version = "0.1.0"
 authors = ["Stefan Wendt <stefanwendt@posteo.de>"]
 
