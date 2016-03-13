@@ -2,143 +2,46 @@ extern crate time;
 extern crate zmq;
 extern crate enclave_cache;
 
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::collections::{HashMap};
+// use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 // use std::thread::{JoinHandle, sleep};
 use enclave_cache::*;
-use time::{get_time, Timespec};
 use zmq::{Socket, Context};
-
-const EXIT: &'static str = "exit";
-
-/// returns cached messages: index 0 is newest, len()-1 is oldest
-fn get_cached_msgs<'a>(n: usize, q: &Arc<Mutex<VecDeque<(&'a str, &'a str, Timespec)>>>)
-    -> Vec<(&'a str, &'a str, Timespec)> {
-    let mut cached_msgs = Vec::with_capacity(n);
-    match q.lock() {
-        Ok(qu) =>  {
-            println!("size: {}", qu.len());
-            println!("TEST TEST TEST0: {:?}", qu.get(0).unwrap());
-            // TODO adapt!!!
-            for i in 0..n {
-                match qu.get(i) {
-                    // Some(s) => cached_msgs.insert(n-i-1, s.clone()),
-                    Some(s) => cached_msgs.push(s.clone()),
-                    None => {},
-                }
-            }
-        },
-        Err(_) => println!("Couldn't access lock."), // TODO do sth. useful?
-    }
-    cached_msgs
-}
-
-fn remove_sensor(id: &str, command_txs: &mut HashMap<&str, Sender<&str>>) {
-    match command_txs.remove(id) {
-        Some(tx) => {
-            // fails if channel is already dead (command_rx dropped or thread down)
-            match tx.send(EXIT) {
-                Ok(_) => println!("parent sent 'exit' to {}", id),
-                Err(e) => println!("Failed to send 'exit' to {}; error: {}", id, e),
-            }
-        },
-        None => println!("Couldn't find channel for {}", id),
-    }
-}
 
 // ------------------------------------------------------------------------------------
 fn main() {
     println!("Cache started.");
 
-    static MAX_AGE: i32 = 30000; // 30 seconds TODO init
+    // static MAX_AGE: i32 = 30000; // 30 seconds TODO init
 
-    let sensors_info = init_sensors_info();
-    // Map<ep, Map<filter, Set<caller-id>>>: necessary for dynamic configuration
-    let mut filter_subs: HashMap<&str, HashMap<&str, HashSet<&str>>> = HashMap::new();
+    let cache = Cache::new();
+    let mut handles = vec![]; // maybe HashMap
 
-    // TODO create function for this
-    let mut a_subs: HashMap<&str, HashSet<&str>> = HashMap::new();
-    a_subs.insert("a", ["clj-requester", "another-service"].iter().cloned().collect());
-    filter_subs.insert("sensor-java", a_subs);
-    let mut one_subs: HashMap<&str, HashSet<&str>> = HashMap::new();
-    one_subs.insert("1", ["clj-requester"].iter().cloned().collect());
-    one_subs.insert("2", ["clj-requester"].iter().cloned().collect());
-    filter_subs.insert("sensor-clj", one_subs);
-    println!("filter_subs: {:?}", filter_subs);
-
-    // sensor-id, socket
-    let mut socket_map: HashMap<String, Socket> = HashMap::new();
-
-    // init msg queues --> buggy! queues needs to be locked => coarse grained locking
-    // sensor-id/data-id, msg, time
-    // let mut queues: HashMap<String, Arc<Mutex<VecDeque<(String, Timespec)>>>> = HashMap::new();
-    // for sensor in sensors_info.iter() {
-    //     // msg, time
-    //     let q: VecDeque<(String, Timespec)> = VecDeque::new();    // TODO with_capacity(n);
-    //     queues.insert(sensor.id.to_string(), Arc::new(Mutex::new(q)).clone());
-    // }
-
-    // init msg queues  => fine grained locking
-    let mut qs: Vec<Arc<Mutex<VecDeque<(String, Timespec)>>>> = vec![];
-    // sensor-id/data-id, msg, time
-    let queues: Arc<Mutex<HashMap<String, &Arc<Mutex<VecDeque<(String, Timespec)>>>>>> = Arc::new(Mutex::new(HashMap::new()));
-
-    {
-        let mut queues = queues.lock().unwrap();
-        for _ in 0..sensors_info.len() {
-            let q: Arc<Mutex<VecDeque<(String, Timespec)>>> = Arc::new(Mutex::new(VecDeque::new()));
-            qs.push(q);
-        }
-        let mut i = 0;
-        for s in sensors_info.iter() {
-            queues.insert(s.id.to_string(), &qs[i]);
-            i += 1;
-        }
+    // threads receive sensor messages
+    for sensor in &cache.sensors {
+        let sensor = sensor.clone();
+        let queue = sensor.queue.clone();
+        let handle = sensor_msg_thread(sensor, queue);
+        handles.push(handle);
     }
 
-    {
-        let map = queues.lock().unwrap();
-        let java_q = map.get(&"sensor-clj".to_string()).unwrap();
-        let java_q = java_q.lock().unwrap();
-        for x in java_q.iter() {
-            print_tuple("sensor-clj".to_string(), x.clone());
-        }
-    }
+    // // Map<ep, Map<filter, Set<caller-id>>>: necessary for dynamic configuration
+    // let mut filter_subs: HashMap<&str, HashMap<&str, HashSet<&str>>> = HashMap::new();
+    //
+    // // TODO create function for this
+    // let mut a_subs: HashMap<&str, HashSet<&str>> = HashMap::new();
+    // a_subs.insert("a", ["clj-requester", "another-service"].iter().cloned().collect());
+    // filter_subs.insert("sensor-java", a_subs);
+    // let mut one_subs: HashMap<&str, HashSet<&str>> = HashMap::new();
+    // one_subs.insert("1", ["clj-requester"].iter().cloned().collect());
+    // one_subs.insert("2", ["clj-requester"].iter().cloned().collect());
+    // filter_subs.insert("sensor-clj", one_subs);
+    // println!("filter_subs: {:?}", filter_subs);
 
     // TODO init map for managing filter/ep registration
 
-
-// ----- new try!
-    // thread receiving sensor messages
-    let queues_one = queues.clone();
-    let handle =  thread::spawn(move || {
-        // init sockets for sensor subscription
-        let mut ctx = Context::new();
-        for sensor in sensors_info.iter() {
-            let socket = init_sensor_socket(&sensor, &mut ctx);
-            socket_map.insert(sensor.id.to_string(), socket);
-        }
-
-        loop {
-            // read messages from sensors
-            let msgs = read_sensor_msgs(&mut socket_map);
-
-            if !msgs.is_empty() {
-                // store msgs into queues
-                for (id, (msg, time)) in msgs {
-                    let queues_one = queues_one.lock().unwrap();
-                    // let q = queues_one.get(&id).unwrap();
-                    // cache_sensor_msg(id, msg, time, q);
-                }
-            }
-        }
-    });
-
-    // print_queues(&queues);
-// -----
 
 // let mut threads = vec![];
 // // let (msg_tx, msg_rx) = channel();
@@ -195,7 +98,13 @@ fn main() {
 
     // thread serving requests
     // TODO create channel and use it also to check whether thread is still alive!
-    let queues_two = queues.clone();
+
+    // also: dieser thread liest die queues aus, je nach reques.
+    // dazu muss er clones von den sensor.queues besitzen -> arc<hashmap<sensor-id, _arc_queue_clone>>?
+    let queue_arcs = cache.sensors.iter()
+                                    .fold(HashMap::new(), |mut acc, sensor|
+                                    { acc.insert(sensor.id.clone(), sensor.queue.clone()); acc});
+
     thread::spawn(move || {
         let mut ctx = Context::new();
         let mut socket: Socket = ctx.socket(zmq::REP).unwrap();
@@ -212,21 +121,24 @@ fn main() {
             socket.send_str("World", 0).unwrap();
 
             // TODO used for debugging
-            // print_queues(&queues);
+            print_queues(&queue_arcs);
         }
     });
 
     // let (mut i, mut j) = (0, 0);
     loop {
-        println!("reading queue for sensor-clj!");
-        {
-            let map = queues.lock().unwrap();
-            let java_q = map.get(&"sensor-clj".to_string()).unwrap();
-            let java_q = java_q.lock().unwrap();
-            for x in java_q.iter() {
-                print_tuple("sensor-clj".to_string(), x.clone());
-            }
-        }
+        // printing all sensor message queues from root thread -> for debugging only!
+        // {
+        //     for sensor in &cache.sensors {
+        //         println!("messages of sensor {}", sensor.id);
+        //         let q = sensor.queue.lock().unwrap();
+        //         for x in q.iter() {
+        //             print_tuple(sensor.id.clone(), x.clone());
+        //             println!("");
+        //         }
+        //         println!("");
+        //     }
+        // }
         thread::sleep(Duration::from_secs(10));
 
         // TODO adapt to queue - no receiving of channel messages anymore! ... keep channel for signals?
@@ -249,7 +161,7 @@ fn main() {
         // }
 
     }
-        handle.join().unwrap();
+        // handle.join().unwrap();
 
 }
 
