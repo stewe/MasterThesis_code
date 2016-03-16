@@ -8,7 +8,9 @@ use std::thread::{JoinHandle, spawn};
 use time::{get_time, Timespec};
 use zmq::{Socket, Context, DONTWAIT};
 
-const EXIT: &'static str = "exit";
+pub fn debug_print(mode: bool, s: String) {
+    if mode { println!("{}", s) };
+}
 
 #[derive(Clone, Debug)]
 pub struct Sensor {
@@ -36,18 +38,16 @@ impl Sensor {
 
 pub struct Cache {
     pub sensors: HashMap<String, Arc<Sensor>>,
-    // sensor-id/data-id -> queue
-    // pub queue_map: Arc<Mutex<HashMap<String, VecDeque<(String, Timespec)>>>>,
+    // Sensor-ID -> {filter -> Set(Subscriber)}
+    subscribers: HashMap<String, HashMap<String, HashSet<String>>>
 }
 
 impl Cache {
     pub fn new() -> Cache {
+        let cache_values = init_sensors_info();
         Cache {
-            sensors: init_sensors_info(),
-            // sensor-id -> socket
-            // socket_map: HashMap::new(),
-            // queue_map: Arc::new(Mutex::new(HashMap::new())),s
-            // qs: vec![],//init_qs(self.sensors_info, self.queue_map),
+            sensors: cache_values.0,
+            subscribers: cache_values.1,
         }
     }
 
@@ -57,6 +57,58 @@ impl Cache {
 
     pub fn add_sensor(&mut self, id: &str, sensor: Arc<Sensor>) {
         self.sensors.insert(id.to_string(), sensor);
+    }
+
+    pub fn remove_sensor(&mut self, id: &str) {
+        self.sensors.remove(id);
+    }
+
+    pub fn add_subscription_to_log(&mut self, sensor_id: &str, caller_id: &str, filters: Vec<String>) {
+        let filter_map = self.subscribers.entry(sensor_id.to_string()).or_insert(HashMap::new());
+        for f in filters {
+            let set = filter_map.entry(f).or_insert(HashSet::new());
+            set.insert(caller_id.to_string());
+        }
+    }
+
+    pub fn remove_subscription_from_log(&mut self, sensor_id: &str, caller_id: &str, filters: Vec<String>) {
+        let remove_sensor;
+        {
+            let mut filter_map = match self.subscribers.get_mut(sensor_id) {
+                Some(v) => v,
+                None => return
+            };
+            for f in filters {
+                let remove_filter;
+                {
+                    let set = filter_map.get_mut(&f);
+                    match set {
+                        Some(v) => { v.remove(caller_id); remove_filter = v.is_empty(); },
+                        None => remove_filter = true,
+                    };
+                }
+                if remove_filter { filter_map.remove(&f); }
+            }
+            remove_sensor = filter_map.is_empty();
+            }
+        if remove_sensor {
+            self.subscribers.remove(sensor_id);
+        }
+    }
+
+    pub fn has_subscribers(&self, sensor_id: &str) -> bool {
+        self.subscribers.contains_key(sensor_id)
+    }
+
+    pub fn get_unsubscribed_filters(&self, sensor_id: &str, filters: Vec<String>) -> Vec<String> {
+        match self.subscribers.get(sensor_id) {
+            Some(v) => filters.iter().cloned().filter(|x| !v.contains_key(x)).collect(),
+            None => vec![]
+        }
+    }
+
+    pub fn print_subscriptions(&self) {
+        println!("subscriptions: {:?}", self.subscribers);
     }
 
     pub fn print_msg_queues(&self) {
@@ -76,30 +128,38 @@ impl Cache {
 
 }
 
-enum SensorThreadCmdType { Add, Remove }
+enum SensorThreadCmdType { Add, Remove, Exit }
 
 pub struct SensorThreadCmd {
     op: SensorThreadCmdType,
-    pub filters: Vec<String>,
+    pub filters: Option<Vec<String>>,
 }
 
 impl SensorThreadCmd {
-    pub fn new_add(filters: Vec<String>) -> SensorThreadCmd{
+    pub fn new_add(filters: Vec<String>) -> SensorThreadCmd {
         SensorThreadCmd {
             op: SensorThreadCmdType::Add,
-            filters: filters,
+            filters: Some(filters),
         }
     }
-    pub fn new_remove(filters: Vec<String>) -> SensorThreadCmd{
+
+    pub fn new_remove(filters: Vec<String>) -> SensorThreadCmd {
         SensorThreadCmd {
             op: SensorThreadCmdType::Remove,
-            filters: filters,
+            filters: Some(filters),
+        }
+    }
+
+    pub fn new_exit() -> SensorThreadCmd {
+        SensorThreadCmd {
+            op: SensorThreadCmdType::Exit,
+            filters: None,
         }
     }
 }
 
 // TODO read and parse config file
-pub fn init_sensors_info() -> HashMap<String, Arc<Sensor>> {
+pub fn init_sensors_info() -> (HashMap<String, Arc<Sensor>>, HashMap<String, HashMap<String, HashSet<String>>>) {
     // TODO read congig file and get sensors
     // let sensor_clj = Sensor::new("sensor-clj",
     //                                 "tcp://127.0.0.1:5556",
@@ -112,7 +172,14 @@ pub fn init_sensors_info() -> HashMap<String, Arc<Sensor>> {
     // sensors.insert("sensor-clj".to_string(), Arc::new(sensor_clj));
     sensors.insert("sensor-java".to_string(), Arc::new(sensor_java));
     println!("Initialized information for {} sensors.", sensors.len());
-    sensors
+
+    let mut subs = HashMap::new();
+    let mut filtermap = HashMap::new();
+    let mut aset = HashSet::new();
+    aset.insert("config".to_string());  // !!! subs from config file get caller_id "config"
+    filtermap.insert("a".to_string(), aset);
+    subs.insert("sensor-java".to_string(), filtermap);
+    (sensors, subs)
 }
 
 pub fn init_sensor_socket(sensor: &Sensor, ctx: &mut Context) -> Socket {
@@ -133,6 +200,9 @@ pub fn sensor_msg_thread(sensor: Arc<Sensor>, queue: Arc<Mutex<VecDeque<(String,
     let handle = spawn(move || {
         // init socket for sensor subscription
         println!("Started thread for sensor {}", sensor.id);
+        
+        // TODO try to use only one context, eg by creating sockets first, then passing it to the thread
+        // mabe compare https://github.com/erickt/rust-zmq/blob/master/examples/msgsend/main.rs
         let mut ctx = Context::new();
         let mut socket = init_sensor_socket(&sensor, &mut ctx);
         loop {
@@ -148,7 +218,7 @@ pub fn sensor_msg_thread(sensor: Arc<Sensor>, queue: Arc<Mutex<VecDeque<(String,
             match rx.try_recv() {
                 Ok(cmd) => { match cmd.op {
                                 SensorThreadCmdType::Add => {
-                                    for filter in cmd.filters {
+                                    for filter in cmd.filters.unwrap() {
                                         match socket.set_subscribe(filter.as_bytes()) {
                                             Ok(_) => println!("Thread \"{}\" added filter: {}",
                                                         sensor.id, filter),
@@ -158,8 +228,16 @@ pub fn sensor_msg_thread(sensor: Arc<Sensor>, queue: Arc<Mutex<VecDeque<(String,
                                     }
                                 }, // first?
                                 SensorThreadCmdType::Remove => {
-
-                                }, // TODO remove
+                                    for filter in cmd.filters.unwrap() {
+                                        match socket.set_unsubscribe(filter.as_bytes()) {
+                                            Ok(_) => println!("Thread \"{}\" removed filter: {}",
+                                                        sensor.id, filter),
+                                            Err(e) => println!("Thread \"{}\" failed to unsubscribe from {} - error {}",
+                                                        sensor.id, filter, e)
+                                        }; // further error handling?
+                                    }
+                                },
+                                SensorThreadCmdType::Exit => panic!("No more subscrptions for sensor {}, closing connection.", sensor.id),
                             }},
                 Err(_) => {},
             }
@@ -167,14 +245,6 @@ pub fn sensor_msg_thread(sensor: Arc<Sensor>, queue: Arc<Mutex<VecDeque<(String,
     });
     (handle, tx)
 }
-
-
-
-// pub fn cache_sensor_msg(id: String, msg: String, time: Timespec, q: &Arc<Mutex<VecDeque<(String, Timespec)>>>) {
-//     println!("caching {} for {}.", msg, id);
-//     let mut q = q.lock().unwrap();
-//     q.push_front((msg, time));
-// }
 
 fn print_tuple(id: String, t: (String, Timespec)) {
     let (msg, time) = t;
@@ -216,21 +286,6 @@ fn get_cached_msgs<'a>(n: usize, q: &Arc<Mutex<VecDeque<(&'a str, &'a str, Times
         Err(_) => println!("Couldn't access lock."), // TODO do sth. useful?
     }
     cached_msgs
-}
-
-
-#[allow(dead_code)]
-fn remove_sensor(id: &str, command_txs: &mut HashMap<&str, Sender<&str>>) {
-    match command_txs.remove(id) {
-        Some(tx) => {
-            // fails if channel is already dead (command_rx dropped or thread down)
-            match tx.send(EXIT) {
-                Ok(_) => println!("parent sent 'exit' to {}", id),
-                Err(e) => println!("Failed to send 'exit' to {}; error: {}", id, e),
-            }
-        },
-        None => println!("Couldn't find channel for {}", id),
-    }
 }
 
 //#[deprecated] // used for one thread reading all sensor zmq sockets

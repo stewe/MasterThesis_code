@@ -3,6 +3,7 @@ extern crate zmq;
 extern crate enclave_cache;
 
 use std::collections::{HashMap};
+use std::env::args;
 use std::sync::Arc;
 use std::sync::mpsc::{Sender};
 use std::thread::JoinHandle;
@@ -12,6 +13,12 @@ use zmq::{Socket, Context};
 
 // ------------------------------------------------------------------------------------
 fn main() {
+    let debug_mode;
+    match args().next() {
+        Some(x) => debug_mode = x == "debug".to_string(),
+        _ => debug_mode = false,
+    }
+
     println!("Cache started.");
 
     // static MAX_AGE: i32 = 30000; // 30 seconds TODO init
@@ -27,77 +34,6 @@ fn main() {
         sensor_threads.insert(id.to_string(), (handle, tx));
     }
 
-    // // Map<ep, Map<filter, Set<caller-id>>>: necessary for dynamic configuration
-    // let mut filter_subs: HashMap<&str, HashMap<&str, HashSet<&str>>> = HashMap::new();
-    //
-    // // TODO create function for this
-    // let mut a_subs: HashMap<&str, HashSet<&str>> = HashMap::new();
-    // a_subs.insert("a", ["clj-requester", "another-service"].iter().cloned().collect());
-    // filter_subs.insert("sensor-java", a_subs);
-    // let mut one_subs: HashMap<&str, HashSet<&str>> = HashMap::new();
-    // one_subs.insert("1", ["clj-requester"].iter().cloned().collect());
-    // one_subs.insert("2", ["clj-requester"].iter().cloned().collect());
-    // filter_subs.insert("sensor-clj", one_subs);
-    // println!("filter_subs: {:?}", filter_subs);
-
-    // TODO init map for managing filter/ep registration
-
-
-// let mut threads = vec![];
-// // let (msg_tx, msg_rx) = channel();
-// let mut command_txs: HashMap<&str, Sender<&str>> = HashMap::new();
-// let mut queues = HashMap::new();
-
-
-    // for sensor in sensors_info.iter(){
-    //     let sensor: Sensor = sensor.clone();
-    //     let id = sensor.id;
-    //
-    //     // let msg_tx = msg_tx.clone();
-    //     let (command_tx, command_rx): (Sender<&str>, Receiver<&str>) = channel();
-    //     command_txs.insert(id, command_tx);
-    //
-    //     let msg_queue: VecDeque<(&str, &str, Timespec)> = VecDeque::new();
-    //     queues.insert(id, Arc::new(Mutex::new(msg_queue)));
-    //     let q = queues.get(id).unwrap();
-    //     let q = q.clone();  // TODO really???
-    //
-    //     let handle = thread::spawn(move || {
-    //         // TODO try to use only one context, eg by creating sockets first, then passing it to the thread
-    //         // mabe compare https://github.com/erickt/rust-zmq/blob/master/examples/msgsend/main.rs
-    //         let mut ctx = Context::new();
-    //         let mut socket = init_sensor_socket(&sensor, &mut ctx);
-    //         println!("Start thread and listen on socket id: {}", id);
-    //
-    //         loop {
-    //             // listen for commands ('exit') TODO: add, remove filter
-    //             match command_rx.try_recv() {
-    //                 Ok(m) => {match m {
-    //                             EXIT => panic!("Thread {} shutdown.", id),
-    //                             _ => println!("sensor {} received {}", id, m)
-    //                         }},
-    //                 Err(..) => {}
-    //             }
-    //
-    //             // listen for messages from sensor
-    //             // TODO IMPORTANT!!! think about how to queue and to get_cached_msgs! sensors - filters - queues
-    //             let msg = (&mut socket).recv_string(0).unwrap().unwrap(); // TODO adapt to message format (e.g. google protocol buffers); handle in an approriate way!
-    //             let time: Timespec = get_time();
-    //             let filter = msg.split_whitespace().nth(0).unwrap();
-    //             println!("from sensor {} received msg  {} at {:?} with filter {}", id, msg, time, filter);
-    //             {
-    //                 let mut q = q.lock().unwrap();
-    //                 // q.push_front(("filter", msg.as_str().clone(), time)); // TODO remove clone() when channel is removed
-    //                 // TODO control size of queue!
-    //             }
-    //             // msg_tx.send((id, msg)).unwrap(); // TODO remove, since we now have a queue
-    //         }
-    //     });
-    //     threads.push(handle);
-    // }
-
-    // thread serving requests
-    // TODO create channel and use it also to check whether thread is still alive!
 
     // main thread: receive requests / API handling
         let mut ctx = Context::new();
@@ -112,33 +48,64 @@ fn main() {
             let msg_str = msg.as_str().unwrap();
             println!("Received request {}", msg_str);
             let mut request = msg_str.split(' ');
-            let op = request.next().unwrap();
+            let op = request.next().unwrap_or("No operator!");
 
             match op {
                 "ADD" => {
                 // TODO receive parameters by parsing
                 // let sender ... -> track client <-> filter
-                let id = request.next().unwrap();
-                let addr = "tcp://127.0.0.1:5556";  // TODO how to receive the addr?!
-                let filters = request.map(|x| x.to_string()).collect(); //vec!["1".to_string(), "2".to_string()];
+                    let sensor_id = request.next().unwrap();
+                    debug_print(debug_mode, format!("sensor_id: {}", sensor_id));
+                    let caller_id = request.next().unwrap();
+                    debug_print(debug_mode, format!("caller_id: {}", caller_id));
+                    let filters: Vec<String> = request.map(|x| x.to_string()).collect(); //vec!["1".to_string(), "2".to_string()];
 
-                let is_active = sensor_threads.contains_key(id);
-                if is_active {
+                    let addr = "tcp://127.0.0.1:5556";  // TODO how to receive the addr?!
+
+                    let is_active = sensor_threads.contains_key(sensor_id);
+                    if is_active {
                     // add filter subscription to already existing thread
-                    let tx = &sensor_threads.get(id).unwrap().1;
-                    let filters = vec!["0".to_string()]; // TODO remove, it's just used for developing and debugging
-                    tx.send(SensorThreadCmd::new_add(filters)).unwrap();
-                    println!("main thread send add to zmq thread."); // TODO DEBUG
-                } else {
+                        let tx = &sensor_threads.get(sensor_id).unwrap().1;
+                        // let filters = vec!["0".to_string()]; // TODO remove, it's just used for developing and debugging
+                        tx.send(SensorThreadCmd::new_add(filters.clone())).unwrap();
+                        debug_print(debug_mode, "main thread send add to zmq thread.".to_string()); // TODO DEBUG
+                    } else {
                     // start new thread for subscribing to sensor
-                    let sensor = Arc::new(Sensor::new(&id, addr, filters));
-                    cache.add_sensor(&id, sensor);
-                    let sensor = cache.sensors.get(id).unwrap();
-                    let queue = sensor.queue.clone();
-                    sensor_threads.insert(id.to_string(), sensor_msg_thread(sensor.clone(), queue));
+                        let sensor = Arc::new(Sensor::new(&sensor_id, addr, filters.clone()));
+                        cache.add_sensor(&sensor_id, sensor);
+                        let sensor = cache.sensors.get(sensor_id).unwrap();
+                        let queue = sensor.queue.clone();
+                        sensor_threads.insert(sensor_id.to_string(), sensor_msg_thread(sensor.clone(), queue));
+                    }
+                    cache.add_subscription_to_log(sensor_id.clone(), caller_id, filters);
+
+                },
+                "REM" => {
+                    let sensor_id = request.next().unwrap();
+                    debug_print(debug_mode, format!("sensor_id: {}", sensor_id));
+                    let caller_id = request.next().unwrap();
+                    debug_print(debug_mode, format!("caller_id: {}", caller_id));
+                    let filters: Vec<String> = request.map(|x| x.to_string()).collect(); //vec!["1".to_string(), "2".to_string()];
+
+                    cache.remove_subscription_from_log(sensor_id, caller_id, filters.clone());
+                    if !cache.has_subscribers(sensor_id) && sensor_threads.contains_key(sensor_id) {
+                        // No more subscribers for the sensor, exit the thread.
+                        {
+                            let tx = &sensor_threads.get(sensor_id).unwrap().1;
+                            tx.send(SensorThreadCmd::new_exit()).unwrap();
+                        }
+                        cache.remove_sensor(sensor_id);
+                        sensor_threads.remove(sensor_id);
+                    } else {
+                        let filters_to_remove = cache.get_unsubscribed_filters(sensor_id, filters);
+                        if !filters_to_remove.is_empty() {
+                            // No more subscribers for these filters, unsubscribe from zmq sockets.
+                            let tx = &sensor_threads.get(sensor_id).unwrap().1;
+                            tx.send(SensorThreadCmd::new_remove(filters_to_remove)).unwrap();
+                        }
+                    }
                 }
-            },
-            _ => println!("Received unknown request.")
+                _ => println!("Received unknown request.")
         }
 
             // parse and execute
@@ -146,6 +113,7 @@ fn main() {
 
             // TODO used for debugging
             cache.print_msg_queues();
+            cache.print_subscriptions();
         }
 
 

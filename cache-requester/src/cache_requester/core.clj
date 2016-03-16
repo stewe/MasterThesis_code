@@ -15,11 +15,13 @@
   (defn -main [& args]
     ; (println (= (first args) "add"))
     (let [context (zmq/context 1),
-          req (case (first args)
-                    "add" req-add
-                    "addf" req-add-filter
-                    "get" req-get
-                    nil req-get)]
+          req (reduce (fn [v x] (str v " " x)) args)
+            ; (case (first args)
+            ;         "add" req-add
+            ;         "addf" req-add-filter
+            ;         "get" req-get
+            ;         nil req-get)
+                    ]
       (println "Connecting to the cache…")
       (with-open [socket (doto (zmq/socket context :req)
                                   (zmq/connect addr))]
