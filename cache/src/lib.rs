@@ -200,7 +200,7 @@ pub fn sensor_msg_thread(sensor: Arc<Sensor>, queue: Arc<Mutex<VecDeque<(String,
     let handle = spawn(move || {
         // init socket for sensor subscription
         println!("Started thread for sensor {}", sensor.id);
-        
+
         // TODO try to use only one context, eg by creating sockets first, then passing it to the thread
         // mabe compare https://github.com/erickt/rust-zmq/blob/master/examples/msgsend/main.rs
         let mut ctx = Context::new();
@@ -263,41 +263,4 @@ pub fn print_arc_queues(queues: &HashMap<String, Arc<Mutex<VecDeque<(String, Tim
         }
         println!("");
     }
-}
-
-#[allow(dead_code)]
-/// returns cached messages: index 0 is newest, len()-1 is oldest
-fn get_cached_msgs<'a>(n: usize, q: &Arc<Mutex<VecDeque<(&'a str, &'a str, Timespec)>>>)
-    -> Vec<(&'a str, &'a str, Timespec)> {
-    let mut cached_msgs = Vec::with_capacity(n);
-    match q.lock() {
-        Ok(qu) =>  {
-            println!("size: {}", qu.len());
-            println!("TEST TEST TEST0: {:?}", qu.get(0).unwrap());
-            // TODO adapt!!!
-            for i in 0..n {
-                match qu.get(i) {
-                    // Some(s) => cached_msgs.insert(n-i-1, s.clone()),
-                    Some(s) => cached_msgs.push(s.clone()),
-                    None => {},
-                }
-            }
-        },
-        Err(_) => println!("Couldn't access lock."), // TODO do sth. useful?
-    }
-    cached_msgs
-}
-
-//#[deprecated] // used for one thread reading all sensor zmq sockets
-pub fn read_sensor_msgs(sockets: &mut HashMap<String, Socket>) -> HashMap<String, (String, Timespec)> {
-    let mut result = HashMap::new();
-    for (id, socket) in sockets.iter_mut() {
-        match socket.recv_string(DONTWAIT) { // TODO adapt to message format (e.g. google protocol buffers); handle in an approriate way!
-            Ok(msg) =>  { let time: Timespec = get_time();
-                match result.insert(id.clone(), (msg.unwrap(), time)) { Some(_) => { }, None => { } } },
-            Err(_)  => { }
-        }
-    }
-    // let filter = msg.split_whitespace().nth(0).unwrap();
-    result
 }
