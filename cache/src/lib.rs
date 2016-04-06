@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+extern crate simple_logger;
 extern crate time;
 extern crate zmq;
 
@@ -5,28 +8,27 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Sender};
 use std::thread::{JoinHandle, spawn};
-use time::{get_time, Timespec};
+use time::{get_time, Duration, Timespec,};
 use zmq::{Socket, Context, DONTWAIT};
-
-pub fn debug_print(mode: bool, s: String) {
-    if mode { println!("{}", s) };
-}
 
 #[derive(Clone, Debug)]
 pub struct Sensor {
     pub id: String,
     pub addr: String,
     pub filters: HashSet<String>,
+    /// expiration in milliseconds
+    pub expiration: usize,
     pub queue: Arc<Mutex<VecDeque<(String, Timespec)>>>, // adapt String
 
 }
 
 impl Sensor {
-    pub fn new(id: &str, addr: &str, filters: Vec<String>) -> Sensor {
+    pub fn new(id: &str, addr: &str, filters: Vec<String>, expiration: usize) -> Sensor {
         Sensor {
             id: id.to_string(),
             addr: addr.to_string(),
             filters: filters.into_iter().collect::<HashSet<String>>(),
+            expiration: expiration,
             queue: Arc::new(Mutex::new(VecDeque::new())),   // TODO ensure ring buffer size!
         }
     }
@@ -39,7 +41,9 @@ impl Sensor {
 pub struct Cache {
     pub sensors: HashMap<String, Arc<Sensor>>,
     // Sensor-ID -> {filter -> Set(Subscriber)}
-    subscribers: HashMap<String, HashMap<String, HashSet<String>>>
+    subscribers: HashMap<String, HashMap<String, HashSet<String>>>,
+    /// expiration in milliseconds
+    pub expiration: usize,
 }
 
 impl Cache {
@@ -48,6 +52,7 @@ impl Cache {
         Cache {
             sensors: cache_values.0,
             subscribers: cache_values.1,
+            expiration: cache_values.2,
         }
     }
 
@@ -111,6 +116,37 @@ impl Cache {
         println!("subscriptions: {:?}", self.subscribers);
     }
 
+    pub fn get_queue(&self, sensor_id: String) -> &Arc<Mutex<VecDeque<(String, Timespec)>>> {
+        &self.sensors.get(&sensor_id).unwrap().queue
+    }
+
+    pub fn get_published_msgs(&self, duration: i64, filter_per_sensors: Vec<(String, Vec<(String, usize)>)>)
+        -> HashMap<String, Vec<String>> {
+        let now = get_time();
+        let earliest = now - Duration::milliseconds(duration);
+        let mut result: HashMap<String, Vec<String>> = HashMap::new();
+
+        for (sensor_id, filters_amounts) in filter_per_sensors {
+            for (filter, amount) in filters_amounts{
+                result.insert(filter, Vec::with_capacity(amount));
+            }
+            let mut filters: HashSet<String> = result.keys().cloned().collect();
+            let queue = self.get_queue(sensor_id).lock().unwrap();
+            debug!("now: {:?}", now);
+            for tuple in queue.iter() {
+                let f = tuple.0.split(' ').next().unwrap(); // TODO get from parsing
+                // is value older than requested and (another) message with this required?
+                if tuple.1 >= earliest && filters.contains(f) {
+                    let msgs = result.entry(f.to_string()).or_insert(vec!());
+                    (*msgs).push(tuple.0.clone());
+                    if (*msgs).len() == (*msgs).capacity() { filters.remove(f); }
+                }
+            }
+        }
+        result
+
+    }
+
     pub fn print_msg_queues(&self) {
         for (id, sensor) in self.sensors.iter() {
 
@@ -136,21 +172,21 @@ pub struct SensorThreadCmd {
 }
 
 impl SensorThreadCmd {
-    pub fn new_add(filters: Vec<String>) -> SensorThreadCmd {
+    pub fn add(filters: Vec<String>) -> SensorThreadCmd {
         SensorThreadCmd {
             op: SensorThreadCmdType::Add,
             filters: Some(filters),
         }
     }
 
-    pub fn new_remove(filters: Vec<String>) -> SensorThreadCmd {
+    pub fn remove(filters: Vec<String>) -> SensorThreadCmd {
         SensorThreadCmd {
             op: SensorThreadCmdType::Remove,
             filters: Some(filters),
         }
     }
 
-    pub fn new_exit() -> SensorThreadCmd {
+    pub fn exit() -> SensorThreadCmd {
         SensorThreadCmd {
             op: SensorThreadCmdType::Exit,
             filters: None,
@@ -159,27 +195,35 @@ impl SensorThreadCmd {
 }
 
 // TODO read and parse config file
-pub fn init_sensors_info() -> (HashMap<String, Arc<Sensor>>, HashMap<String, HashMap<String, HashSet<String>>>) {
+pub fn init_sensors_info()
+    -> (HashMap<String, Arc<Sensor>>, HashMap<String, HashMap<String, HashSet<String>>>, usize) {
     // TODO read congig file and get sensors
-    // let sensor_clj = Sensor::new("sensor-clj",
-    //                                 "tcp://127.0.0.1:5556",
-    //                                 vec!["1".to_string(), "2".to_string()]);
-    let sensor_java = Sensor::new("sensor-java",
-                                    "tcp://127.0.0.1:5555",
-                                    vec!["a".to_string()]);
-
     let mut sensors = HashMap::new();
-    // sensors.insert("sensor-clj".to_string(), Arc::new(sensor_clj));
-    sensors.insert("sensor-java".to_string(), Arc::new(sensor_java));
-    println!("Initialized information for {} sensors.", sensors.len());
-
     let mut subs = HashMap::new();
+    let expiration_time = 100000;
+
+    let sensor_clj = Sensor::new("sensor-clj", "tcp://127.0.0.1:5556",
+                                    vec!["1".to_string(), "2".to_string()], 60000);
+    sensors.insert("sensor-clj".to_string(), Arc::new(sensor_clj));
+    let mut filtermap = HashMap::new();
+    let mut oneset = HashSet::new();
+    let mut twoset = HashSet::new();
+    oneset.insert("config".to_string());  // !!! subs from config file get caller_id "config"
+    twoset.insert("config".to_string());  // !!! subs from config file get caller_id "config"
+    filtermap.insert("1".to_string(), oneset);
+    filtermap.insert("2".to_string(), twoset);
+    subs.insert("sensor-clj".to_string(), filtermap);
+
+    let sensor_java = Sensor::new("sensor-java", "tcp://127.0.0.1:5555", vec!["a".to_string()], 60000);
+    sensors.insert("sensor-java".to_string(), Arc::new(sensor_java));
     let mut filtermap = HashMap::new();
     let mut aset = HashSet::new();
     aset.insert("config".to_string());  // !!! subs from config file get caller_id "config"
     filtermap.insert("a".to_string(), aset);
     subs.insert("sensor-java".to_string(), filtermap);
-    (sensors, subs)
+
+    info!("Initialized information for {} sensors.", sensors.len());
+    (sensors, subs, expiration_time)
 }
 
 pub fn init_sensor_socket(sensor: &Sensor, ctx: &mut Context) -> Socket {
@@ -210,7 +254,8 @@ pub fn sensor_msg_thread(sensor: Arc<Sensor>, queue: Arc<Mutex<VecDeque<(String,
             match socket.recv_string(DONTWAIT) { // TODO adapt to message format (e.g. google protocol buffers); handle in an approriate way!
                 Ok(msg) =>  { let time: Timespec = get_time();
                                 let mut queue = queue.lock().unwrap();
-                                queue.push_back((msg.unwrap(), time));
+                                queue.push_front((msg.unwrap(), time));
+                                // TODO remove outdated msgs from back to front
                             },
                 Err(_)  => { }
             }

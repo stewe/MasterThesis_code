@@ -8,3 +8,6 @@ git = "https://github.com/erickt/rust-zmq.git"
 
 [dependencies]
 time = "0.1"
+log = "0.3"
+# env_logger = "*"
+simple_logger = "0.4.0"
