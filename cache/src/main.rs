@@ -6,6 +6,9 @@ extern crate time;
 extern crate zmq;
 extern crate enclave_cache;
 
+extern crate zmq_rs;
+extern crate zmq_ffi;
+
 use std::collections::{HashMap};
 use std::sync::Arc;
 use std::sync::mpsc::{Sender};
@@ -14,31 +17,31 @@ use std::thread::JoinHandle;
 use enclave_cache::*;
 use zmq::{Socket, Context};
 
+// use zmq_rs;
+
+
 // ------------------------------------------------------------------------------------
 fn main() {
     // env_logger::init().unwrap();
     simple_logger::init().unwrap();
     info!("Cache started.");
 
-
-    // static MAX_AGE: i32 = 30000; // 30 seconds TODO init
-
-    let mut cache = Cache::new();
+    let mut cache = CacheApp::new();
     let mut sensor_threads: HashMap<String, (JoinHandle<()>, Sender<SensorThreadCmd>)> = HashMap::new();
     // let mut pushed_data =
+    let mut ctx = Context::new();
 
 
     // threads receiving sensor messages
     for (id, sensor) in &cache.sensors {
         let sensor = sensor.clone();
         let queue = sensor.queue.clone();
-        let (handle, tx) = sensor_msg_thread(sensor, queue);
+        let (handle, tx) = sensor_msg_thread(sensor, queue, &mut ctx);
         sensor_threads.insert(id.to_string(), (handle, tx));
     }
 
 
     // main thread: receive requests / API handling
-        let mut ctx = Context::new();
         let mut socket: Socket = ctx.socket(zmq::REP).unwrap();
         socket.bind("tcp://*:5550").unwrap();
 
@@ -60,7 +63,7 @@ fn main() {
                     debug!("sensor_id: {}", sensor_id);
                     let caller_id = request.next().unwrap();
                     debug!("caller_id: {}", caller_id);
-                    let filters: Vec<String> = request.map(|x| x.to_string()).collect(); //vec!["1".to_string(), "2".to_string()];
+                    let filters: Vec<String> = request.map(|x| x.to_string()).collect();
 
                     let addr = "tcp://127.0.0.1:5556";  // TODO how to receive the addr?!
 
@@ -72,11 +75,11 @@ fn main() {
                         debug!("Main thread send add to zmq thread.");
                     } else {
                     // start new thread for subscribing to sensor
-                        let sensor = Arc::new(Sensor::new(&sensor_id, addr, filters.clone(), 0));
+                        let sensor = Arc::new(Sensor::new(&sensor_id, addr, filters.clone(), cache.get_expiration()));
                         cache.add_sensor(&sensor_id, sensor);
                         let sensor = cache.sensors.get(sensor_id).unwrap();
                         let queue = sensor.queue.clone();
-                        sensor_threads.insert(sensor_id.to_string(), sensor_msg_thread(sensor.clone(), queue));
+                        sensor_threads.insert(sensor_id.to_string(), sensor_msg_thread(sensor.clone(), queue, &mut ctx));
                     }
                     cache.add_subscription_to_log(sensor_id.clone(), caller_id, filters);
                     // TODO error handling!
@@ -88,7 +91,7 @@ fn main() {
                     debug!("sensor_id: {}", sensor_id);
                     let caller_id = request.next().unwrap();
                     debug!("caller_id: {}", caller_id);
-                    let filters: Vec<String> = request.map(|x| x.to_string()).collect(); //vec!["1".to_string(), "2".to_string()];
+                    let filters: Vec<String> = request.map(|x| x.to_string()).collect();
 
                     cache.remove_subscription_from_log(sensor_id, caller_id, filters.clone());
                     if !cache.has_subscribers(sensor_id) && sensor_threads.contains_key(sensor_id) {
@@ -143,21 +146,11 @@ fn main() {
 
             // TODO used for debugging
             cache.print_msg_queues();
-            cache.print_subscriptions();
+            cache.log_subscriptions();
         }
-
-
 
 }
 
 
 // let chks: Vec<i64> = msg.split(' ').map(|x| atoi(x)).collect();
 // let (_zipcode, temperature, _relhumidity) = (chks[0], chks[1], chks[2]);
-
-// init: subscribe to sensors
-// receive messages in new threads
-// listen to req socket and reply
-// queues for messages
-    // idea: ringbuffer (maybe with extrasize) with get(number) that does not remove elements
-    // -> spsc, conflicts with head element?
-// multiple microservices? keep track of filters / sensors

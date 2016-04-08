@@ -3,33 +3,36 @@ extern crate log;
 extern crate simple_logger;
 extern crate time;
 extern crate zmq;
+extern crate zmq_sys;
 
+pub mod cache_ds; // TODO pub necessary???
+
+use cache_ds::*;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Sender};
 use std::thread::{JoinHandle, spawn};
 use time::{get_time, Duration, Timespec,};
-use zmq::{Socket, Context, DONTWAIT};
+use zmq::{Context, DONTWAIT, poll, POLLIN, Socket};
 
 #[derive(Clone, Debug)]
 pub struct Sensor {
     pub id: String,
     pub addr: String,
     pub filters: HashSet<String>,
-    /// expiration in milliseconds
-    pub expiration: usize,
+    /// duration in milliseconds until cached pub-messages expire
+    pub expiration: i64,
     pub queue: Arc<Mutex<VecDeque<(String, Timespec)>>>, // adapt String
-
 }
 
 impl Sensor {
-    pub fn new(id: &str, addr: &str, filters: Vec<String>, expiration: usize) -> Sensor {
+    pub fn new(id: &str, addr: &str, filters: Vec<String>, expiration: i64) -> Sensor {
         Sensor {
             id: id.to_string(),
             addr: addr.to_string(),
             filters: filters.into_iter().collect::<HashSet<String>>(),
             expiration: expiration,
-            queue: Arc::new(Mutex::new(VecDeque::new())),   // TODO ensure ring buffer size!
+            queue: Arc::new(Mutex::new(VecDeque::new())),
         }
     }
 
@@ -38,22 +41,29 @@ impl Sensor {
     }
 }
 
-pub struct Cache {
+pub struct CacheApp {
     pub sensors: HashMap<String, Arc<Sensor>>,
     // Sensor-ID -> {filter -> Set(Subscriber)}
     subscribers: HashMap<String, HashMap<String, HashSet<String>>>,
-    /// expiration in milliseconds
-    pub expiration: usize,
+    /// default duration in milliseconds until cached pub-messages expire
+    expiration: i64,
+    #[allow(dead_code)] // TODO
+    cache_ds: CacheDS<String, String>, // mutex? when using an dedicated thread for garbage collection
 }
 
-impl Cache {
-    pub fn new() -> Cache {
+impl CacheApp {
+    pub fn new() -> CacheApp {
         let cache_values = init_sensors_info();
-        Cache {
+        CacheApp {
             sensors: cache_values.0,
             subscribers: cache_values.1,
             expiration: cache_values.2,
+            cache_ds: CacheDS::new(),
         }
+    }
+
+    pub fn get_expiration(&self) -> i64 {
+        self.expiration
     }
 
     pub fn contains_sensor(&self, id: &str) -> bool {
@@ -112,12 +122,15 @@ impl Cache {
         }
     }
 
-    pub fn print_subscriptions(&self) {
-        println!("subscriptions: {:?}", self.subscribers);
+    pub fn log_subscriptions(&self) {
+        info!("subscriptions: {:?}", self.subscribers);
     }
 
-    pub fn get_queue(&self, sensor_id: String) -> &Arc<Mutex<VecDeque<(String, Timespec)>>> {
-        &self.sensors.get(&sensor_id).unwrap().queue
+    pub fn get_queue(&self, sensor_id: String) -> Option<&Arc<Mutex<VecDeque<(String, Timespec)>>>> {
+        match self.sensors.get(&sensor_id) {
+            Some(v) => Some(&v.queue),
+            None => None,
+        }
     }
 
     pub fn get_published_msgs(&self, duration: i64, filter_per_sensors: Vec<(String, Vec<(String, usize)>)>)
@@ -131,16 +144,21 @@ impl Cache {
                 result.insert(filter, Vec::with_capacity(amount));
             }
             let mut filters: HashSet<String> = result.keys().cloned().collect();
-            let queue = self.get_queue(sensor_id).lock().unwrap();
-            debug!("now: {:?}", now);
-            for tuple in queue.iter() {
-                let f = tuple.0.split(' ').next().unwrap(); // TODO get from parsing
-                // is value older than requested and (another) message with this required?
-                if tuple.1 >= earliest && filters.contains(f) {
-                    let msgs = result.entry(f.to_string()).or_insert(vec!());
-                    (*msgs).push(tuple.0.clone());
-                    if (*msgs).len() == (*msgs).capacity() { filters.remove(f); }
+            match self.get_queue(sensor_id) {
+                Some(queue) => {
+                    let queue = queue.lock().unwrap();
+                    debug!("now: {:?}", now);
+                    for tuple in queue.iter() {
+                        let f = tuple.0.split(' ').next().unwrap(); // TODO get from parsing
+                        // is value older than requested and (another) message with this required?
+                        if tuple.1 >= earliest && filters.contains(f) {
+                            let msgs = result.entry(f.to_string()).or_insert(vec!());
+                            (*msgs).push(tuple.0.clone());
+                            if (*msgs).len() == (*msgs).capacity() { filters.remove(f); }
+                        }
+                    }
                 }
+                None => { }
             }
         }
         result
@@ -152,13 +170,13 @@ impl Cache {
 
             let q = sensor.queue.lock().unwrap();
             let size = q.len();
-            println!("{} contains: ", id);
+            info!("{} contains: ", id);
             for i in 0..size {
                 let a = q.get(i).unwrap();
                 print_tuple(id.clone(), a.clone());
                 println!("");
             }
-            println!("");
+            info!("");
         }
     }
 
@@ -168,7 +186,7 @@ enum SensorThreadCmdType { Add, Remove, Exit }
 
 pub struct SensorThreadCmd {
     op: SensorThreadCmdType,
-    pub filters: Option<Vec<String>>,
+        pub filters: Option<Vec<String>>,
 }
 
 impl SensorThreadCmd {
@@ -196,7 +214,7 @@ impl SensorThreadCmd {
 
 // TODO read and parse config file
 pub fn init_sensors_info()
-    -> (HashMap<String, Arc<Sensor>>, HashMap<String, HashMap<String, HashSet<String>>>, usize) {
+    -> (HashMap<String, Arc<Sensor>>, HashMap<String, HashMap<String, HashSet<String>>>, i64) {
     // TODO read congig file and get sensors
     let mut sensors = HashMap::new();
     let mut subs = HashMap::new();
@@ -238,36 +256,27 @@ pub fn init_sensor_socket(sensor: &Sensor, ctx: &mut Context) -> Socket {
     socket
 }
 
-pub fn sensor_msg_thread(sensor: Arc<Sensor>, queue: Arc<Mutex<VecDeque<(String, Timespec)>>>)
+pub fn sensor_msg_thread(sensor: Arc<Sensor>, queue: Arc<Mutex<VecDeque<(String, Timespec)>>>,
+                        ctx: &mut Context)
     -> (JoinHandle<()>, Sender<SensorThreadCmd>) {
     let (tx, rx) = channel::<SensorThreadCmd>();
+    let mut socket = init_sensor_socket(&sensor, ctx);
+
     let handle = spawn(move || {
         // init socket for sensor subscription
-        println!("Started thread for sensor {}", sensor.id);
+        info!("Started thread for sensor {}", sensor.id);
 
-        // TODO try to use only one context, eg by creating sockets first, then passing it to the thread
-        // mabe compare https://github.com/erickt/rust-zmq/blob/master/examples/msgsend/main.rs
-        let mut ctx = Context::new();
-        let mut socket = init_sensor_socket(&sensor, &mut ctx);
+    // TODO alternatively socket.get_events() == Ok(POLLIN) -> received a message! ... but then u can use try_recv and a timeout by yourself
         loop {
-            // read message from zmq socket
-            match socket.recv_string(DONTWAIT) { // TODO adapt to message format (e.g. google protocol buffers); handle in an approriate way!
-                Ok(msg) =>  { let time: Timespec = get_time();
-                                let mut queue = queue.lock().unwrap();
-                                queue.push_front((msg.unwrap(), time));
-                                // TODO remove outdated msgs from back to front
-                            },
-                Err(_)  => { }
-            }
             // read message from command channel
             match rx.try_recv() {
                 Ok(cmd) => { match cmd.op {
                                 SensorThreadCmdType::Add => {
                                     for filter in cmd.filters.unwrap() {
                                         match socket.set_subscribe(filter.as_bytes()) {
-                                            Ok(_) => println!("Thread \"{}\" added filter: {}",
+                                            Ok(_) => info!("Thread \"{}\" added filter: {}",
                                                         sensor.id, filter),
-                                            Err(e) => println!("Thread \"{}\" failed to subscribe to {} - error {}",
+                                            Err(e) => info!("Thread \"{}\" failed to subscribe to {} - error {}",
                                                         sensor.id, filter, e)
                                         }; // further error handling?
                                     }
@@ -275,17 +284,41 @@ pub fn sensor_msg_thread(sensor: Arc<Sensor>, queue: Arc<Mutex<VecDeque<(String,
                                 SensorThreadCmdType::Remove => {
                                     for filter in cmd.filters.unwrap() {
                                         match socket.set_unsubscribe(filter.as_bytes()) {
-                                            Ok(_) => println!("Thread \"{}\" removed filter: {}",
+                                            Ok(_) => info!("Thread \"{}\" removed filter: {}",
                                                         sensor.id, filter),
-                                            Err(e) => println!("Thread \"{}\" failed to unsubscribe from {} - error {}",
+                                            Err(e) => info!("Thread \"{}\" failed to unsubscribe from {} - error {}",
                                                         sensor.id, filter, e)
                                         }; // further error handling?
                                     }
                                 },
                                 SensorThreadCmdType::Exit => panic!("No more subscrptions for sensor {}, closing connection.", sensor.id),
                             }},
-                Err(_) => {},
+                _ => {},
             }
+
+            // read message from zmq socket
+            match poll(&mut [socket.as_poll_item(POLLIN)], 20) {
+                Ok(_) => {
+                    match socket.recv_string(DONTWAIT) { // TODO adapt to message format (e.g. google protocol buffers); handle in an approriate way!
+                        Ok(msg) =>  { let time: Timespec = get_time();
+                                        let mut queue = queue.lock().unwrap();
+                                        queue.push_front((msg.unwrap(), time));
+                                        let expiration_time = time - Duration::milliseconds(sensor.expiration);
+                                        while queue.back().is_some() {
+                                            if queue.back().unwrap().1 < expiration_time {
+                                                queue.pop_back();
+                                            } else {
+                                                break;
+                                            }
+                                        }
+                                    },
+                        _  => {}
+                    }
+                },
+                _ => {},
+            }
+
+
         }
     });
     (handle, tx)
