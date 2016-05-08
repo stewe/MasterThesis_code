@@ -3,6 +3,14 @@ name = "enclave_cache"
 version = "0.1.0"
 authors = ["Stefan Wendt <stefanwendt@posteo.de>"]
 
+[lib]
+name = "enclave_cache"
+path = "src/lib.rs"
+
+[[bin]]
+name = "enclave_cache_bin"
+path = "src/main.rs"
+
 [dependencies]
 time = "0.1"
 log = "0.3"
@@ -12,3 +20,4 @@ zmq = { git = "https://github.com/erickt/rust-zmq.git", rev = "87a6bd2" }
 zmq-sys = { git = "https://github.com/erickt/rust-zmq.git", rev = "87a6bd2"  }
 zmq-rs = "0.1.*"
 zmq-ffi = "0.1.*"
+slab = "0.2.0"
