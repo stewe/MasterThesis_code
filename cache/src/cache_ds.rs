@@ -47,7 +47,7 @@ impl<K, V> CacheDS<K, V> where K: PartialOrd + Ord + Clone + Hash {
             Ok(idx) => { self.map.insert(key.clone(), (idx, expiry));
                             self.list.push_back(key);
                             Ok(())},
-            Err(_) => Err("Error while storing value."),
+            Err(_) => Err("An error ocured while storing value."),
         }
 
     }

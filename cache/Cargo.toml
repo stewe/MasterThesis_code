@@ -12,7 +12,7 @@ name = "enclave_cache_bin"
 path = "src/main.rs"
 
 [dependencies]
-time = "0.1"
+time = "^0.1"
 log = "0.3"
 # env_logger = "*"
 simple_logger = "0.4.0"

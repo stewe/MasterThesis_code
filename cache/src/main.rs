@@ -41,11 +41,7 @@ fn main() {
             debug!("Received request: {:?}", msg.as_str().clone());
 
             let resp = cache_enclave.handle_request(&mut msg);
-
-            match resp {
-                Ok(resp_msg) => { socket.send_msg(resp_msg, 0).unwrap(); },
-                _ => { socket.send_str("An error occured.", 0).is_ok(); },
-            }
+            socket.send(resp.as_bytes(), 0).unwrap();
         }
 
 }

@@ -10,14 +10,14 @@ pub mod cache_ds; // TODO pub necessary???
 use cache_ds::*;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
-use time::{Timespec,};
+use time::{Duration, now, Timespec};
 use zmq::{Message};
 
 
 pub struct CacheEnclave {
     expiration: i64,
     #[allow(dead_code)] // TODO
-    cache_ds: CacheDS<String, String>, // mutex? when using an dedicated thread for garbage collection
+    cache_ds: CacheDS<String, Vec<u8>>, // mutex? when using an dedicated thread for garbage collection
 }
 
 impl CacheEnclave {
@@ -36,39 +36,55 @@ impl CacheEnclave {
         self.expiration
     }
 
-    pub fn handle_request(&mut self, msg: &mut Message) -> Result<Message, zmq::Error> {
+    pub fn handle_request(&mut self, msg: &mut Message) -> String {
         let msg_str = msg.as_str().unwrap();
+
+        // TODO parse msg appropriately
         let mut request = msg_str.split(' ');
         let op = request.next().unwrap_or("No operator!");
 
         let mut resp = String::new();
-        let resp_msg = Message::new();
         match op {
-            // set
+            "set" => {  //let time_in_millis: i64 = 1462786673725;
+                        //let expiry = Timespec::new(time_in_millis/1000, (time_in_millis%1000 * 1000) as i32);
+                        let expiry = now() + Duration::seconds(10); // use parse and calculated value
+
+                        let result: Result<(), &str>;
+                        // result = self.cache_ds.insert_with_expiry(key, value, expiry);
+                        // result = self.cache_ds.insert_with_ttl(key, value, ttl: i64);
+                        // no ttl/expiry given: use default
+                        // result = self.cache_ds.insert_with_ttl(key, value, self.expiration);
+                        result = Err("foo bar!");
+
+                        match result {
+                            Ok(_) => { resp.push_str(""); },
+                            Err(err) => { resp.push_str(err); },
+                        };
+                    },
             // add
             //replace
 
-            //get
+            "get" => {  let key = "key".to_string();
+                        match self.cache_ds.get(&key) {
+                            Some(v) => { match std::str::from_utf8(v) {
+                                            Ok(val) => { resp = resp + val; },
+                                            Err(err) => { error!("Error at {}", err);
+                                                            resp = resp + "No valid value."; }
+                                        }},
+                            None => { resp = resp + "No valid value."; },
+                        }
+                    },
 
-            //delete
+            "del" => {  let key = "key".to_string();
+                        self.cache_ds.remove(&key);
+                        resp.push_str("OK");
+            }
 
             // next case
             _ => { info!("Received unknown request."); }
         }
-        resp_msg
+        resp
     }
-
-    // pub fn set_with_expiry(&mut self, key: K, value: V, expiry: Timespec) {
-    //     self.cache_ds
-    // }
-
-    // set
-    // add
-    //replace
-
-    //get
-
-    //delete
 
 
 }
