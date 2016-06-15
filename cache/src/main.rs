@@ -14,7 +14,8 @@ extern crate enclave_cache;
 // use std::sync::mpsc::{Sender};
 // use std::thread::JoinHandle;
 
-use enclave_cache::{CacheEnclave};
+use enclave_cache::cache_enclave;
+// use enclave_cache::{CacheEnclave};
 use zmq::{Socket, Context};
 
 // use zmq_rs;
@@ -26,22 +27,21 @@ fn main() {
     simple_logger::init().unwrap();
     info!("Cache started.");
 
-    let mut cache_enclave = CacheEnclave::new(10, 60000); // TODO configure
+    // let mut cache_enclave = CacheEnclave::new_default();
     let mut ctx = Context::new();
 
 
     // main thread: receive requests, forward into enclave
+         // TODO consider DEALER/ROUTER for asynchronous communication like ADD, see http://zguide.zeromq.org/page:all#advanced-request-reply
         let mut socket: Socket = ctx.socket(zmq::REP).unwrap();
         socket.bind("tcp://*:5550").unwrap();
 
 
-        let mut msg = zmq::Message::new().unwrap();
+        // let mut msg = zmq::Message::new().unwrap();
         loop {
-            socket.recv(&mut msg, 0).unwrap();
-            debug!("Received request: {:?}", msg.as_str().clone());
-
-            let resp = cache_enclave.handle_request(&mut msg);
-            socket.send(resp.as_bytes(), 0).unwrap();
+            let msg = socket.recv_bytes(0).unwrap();
+            let resp = cache_enclave::ecall_handle_request(msg);
+            socket.send(&resp, 0).unwrap();
         }
 
 }

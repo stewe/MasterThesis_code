@@ -1,9 +1,15 @@
 #[macro_use]
+extern crate lazy_static;
+#[macro_use]
 extern crate log;
 extern crate simple_logger;
 extern crate time;
 extern crate zmq;
 extern crate zmq_sys;
+extern crate enclave_cache_lib;
+extern crate sgx_isa;
+
+pub mod cache_enclave;
 
 pub mod cache_ds; // TODO pub necessary???
 
@@ -13,6 +19,11 @@ use std::sync::{Arc, Mutex};
 use time::{Duration, now, Timespec};
 use zmq::{Message};
 
+
+static CAPACITY: usize = 10;  // TODO configure
+static EXPIRATION: i64 = 6000; // TODO configure
+
+// static mut CACHE_ENCLAVE: CacheEnclave = CacheEnclave{expiration: 0, cache_ds: None};
 
 pub struct CacheEnclave {
     expiration: i64,
@@ -28,16 +39,31 @@ impl CacheEnclave {
         }
     }
 
+    pub fn new_default() -> CacheEnclave {
+        CacheEnclave {
+            expiration: EXPIRATION,
+            cache_ds: CacheDS::new(CAPACITY),
+        }
+    }
+
     // fn set_expiration(&mut self, expiration: i64) {
-    //     self.expiration = expiration;
+        // self.expiration = expiration;
     // }
 
     pub fn get_expiration(&self) -> i64 {
         self.expiration
     }
 
-    pub fn handle_request(&mut self, msg: &mut Message) -> String {
-        let msg_str = msg.as_str().unwrap();
+    pub fn handle_request(&mut self, msg: &Vec<u8>) -> String {
+        // TODO debug only
+        match String::from_utf8(msg.clone()) {
+            Ok(m) => { debug!("Received request: {:?}", m); },
+            Err(_) => { debug!("Received non-string request: {:?}", &msg); },
+        }
+
+
+
+        let msg_str = "msg.as_str().unwrap()"; // TODO
 
         // TODO parse msg appropriately
         let mut request = msg_str.split(' ');
@@ -45,6 +71,9 @@ impl CacheEnclave {
 
         let mut resp = String::new();
         match op {
+
+
+
             "set" => {  //let time_in_millis: i64 = 1462786673725;
                         //let expiry = Timespec::new(time_in_millis/1000, (time_in_millis%1000 * 1000) as i32);
                         let expiry = now() + Duration::seconds(10); // use parse and calculated value
@@ -89,7 +118,6 @@ impl CacheEnclave {
 
 }
 
-// static mut CACHE_ENCLAVE: CacheEnclave = CacheEnclave{expiration: 0, cache_ds: None};
 
 fn print_tuple(id: String, t: (String, Timespec)) {
     let (msg, time) = t;

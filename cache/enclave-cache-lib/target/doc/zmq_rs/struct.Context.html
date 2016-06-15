@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Context` struct in crate `zmq_rs`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Context">
+
+    <title>zmq_rs::Context - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='index.html'>zmq_rs</a></p><script>window.sidebarCurrent = {name: 'Context', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>zmq_rs</a>::<wbr><a class='struct' href=''>Context</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-1048' class='srclink' href='../src/zmq_rs/lib.rs.html#163-165' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Context {
+    // some fields omitted
+}</pre><h2 id='methods'>Methods</h2><h3 class='impl'><code>impl <a class='struct' href='../zmq_rs/struct.Context.html' title='zmq_rs::Context'>Context</a></code></h3><div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>() -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='struct' href='../zmq_rs/struct.Context.html' title='zmq_rs::Context'>Context</a>, <a class='struct' href='../zmq_rs/struct.Error.html' title='zmq_rs::Error'>Error</a>&gt;</code></h4>
+<div class='docblock'><p>Create new 0MQ context</p>
+
+<p>Binding of <code>void *zmq_ctx_new ();</code></p>
+
+<p>The function creates a new ØMQ context.</p>
+
+<h1 id='thread-safety' class='section-header'><a href='#thread-safety'>Thread safety</a></h1>
+<p>A ØMQ context is thread safe and may be shared among as many application threads as necessary,
+without any additional locking required on the part of the caller.</p>
+</div><h4 id='method.shutdown' class='method'><code>fn <a href='#method.shutdown' class='fnname'>shutdown</a>(&amp;mut self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, <a class='struct' href='../zmq_rs/struct.Error.html' title='zmq_rs::Error'>Error</a>&gt;</code></h4>
+<div class='docblock'><p>Shutdown a 0MQ context</p>
+
+<p>Binding of <code>int zmq_ctx_shutdown (void *context);</code></p>
+
+<p>The function will shutdown the ØMQ context context.
+Context shutdown will cause any blocking operations currently in progress on sockets open within context to return immediately with an error code of ETERM.
+With the exception of Socket::Close(), any further operations on sockets open within context will fail with an error code of ETERM.</p>
+</div><h4 id='method.get_io_threads' class='method'><code>fn <a href='#method.get_io_threads' class='fnname'>get_io_threads</a>(&amp;self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>, <a class='struct' href='../zmq_rs/struct.Error.html' title='zmq_rs::Error'>Error</a>&gt;</code></h4>
+<h4 id='method.get_max_sockets' class='method'><code>fn <a href='#method.get_max_sockets' class='fnname'>get_max_sockets</a>(&amp;self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>, <a class='struct' href='../zmq_rs/struct.Error.html' title='zmq_rs::Error'>Error</a>&gt;</code></h4>
+<h4 id='method.get_socket_limit' class='method'><code>fn <a href='#method.get_socket_limit' class='fnname'>get_socket_limit</a>(&amp;self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>, <a class='struct' href='../zmq_rs/struct.Error.html' title='zmq_rs::Error'>Error</a>&gt;</code></h4>
+<h4 id='method.is_ipv6_enabled' class='method'><code>fn <a href='#method.is_ipv6_enabled' class='fnname'>is_ipv6_enabled</a>(&amp;self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>, <a class='struct' href='../zmq_rs/struct.Error.html' title='zmq_rs::Error'>Error</a>&gt;</code></h4>
+<h4 id='method.set_io_threads' class='method'><code>fn <a href='#method.set_io_threads' class='fnname'>set_io_threads</a>(&amp;mut self, optval: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, <a class='struct' href='../zmq_rs/struct.Error.html' title='zmq_rs::Error'>Error</a>&gt;</code></h4>
+<h4 id='method.set_max_sockets' class='method'><code>fn <a href='#method.set_max_sockets' class='fnname'>set_max_sockets</a>(&amp;mut self, optval: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, <a class='struct' href='../zmq_rs/struct.Error.html' title='zmq_rs::Error'>Error</a>&gt;</code></h4>
+<h4 id='method.set_thread_priority' class='method'><code>fn <a href='#method.set_thread_priority' class='fnname'>set_thread_priority</a>(&amp;mut self, optval: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, <a class='struct' href='../zmq_rs/struct.Error.html' title='zmq_rs::Error'>Error</a>&gt;</code></h4>
+<h4 id='method.set_thread_sched_policy' class='method'><code>fn <a href='#method.set_thread_sched_policy' class='fnname'>set_thread_sched_policy</a>(&amp;mut self, optval: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, <a class='struct' href='../zmq_rs/struct.Error.html' title='zmq_rs::Error'>Error</a>&gt;</code></h4>
+<h4 id='method.set_ipv6' class='method'><code>fn <a href='#method.set_ipv6' class='fnname'>set_ipv6</a>(&amp;mut self, optval: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, <a class='struct' href='../zmq_rs/struct.Error.html' title='zmq_rs::Error'>Error</a>&gt;</code></h4>
+<h4 id='method.socket' class='method'><code>fn <a href='#method.socket' class='fnname'>socket</a>(&amp;self, t: <a class='type' href='../zmq_rs/type.SocketType.html' title='zmq_rs::SocketType'>SocketType</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='struct' href='../zmq_rs/socket/struct.Socket.html' title='zmq_rs::socket::Socket'>Socket</a>, <a class='struct' href='../zmq_rs/struct.Error.html' title='zmq_rs::Error'>Error</a>&gt;</code></h4>
+<div class='docblock'><p>Create 0MQ socket</p>
+
+<p>Binding of <code>void *zmq_socket (void *context, int type);</code></p>
+
+<p>The type argument specifies the socket type, which determines the semantics of communication over the socket.
+The newly created socket is initially unbound, and not associated with any endpoints.
+In order to establish a message flow a socket must first be connected to at least one endpoint with Scoket::Connect,
+or at least one endpoint must be created for accepting incoming connections with Socket::Bind().</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Send.html' title='core::marker::Send'>Send</a> for <a class='struct' href='../zmq_rs/struct.Context.html' title='zmq_rs::Context'>Context</a></code></h3><div class='impl-items'></div><h3 class='impl'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html' title='core::marker::Sync'>Sync</a> for <a class='struct' href='../zmq_rs/struct.Context.html' title='zmq_rs::Context'>Context</a></code></h3><div class='impl-items'></div><h3 class='impl'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../zmq_rs/struct.Context.html' title='zmq_rs::Context'>Context</a></code></h3><div class='impl-items'><h4 id='method.drop' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></h4>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "zmq_rs";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

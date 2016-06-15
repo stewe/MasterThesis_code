@@ -1,0 +1,34 @@
+message CacheMsg {
+  optional uint32 client_id = 1;
+  required string msg_type = 2;
+  required bytes msg = 3;
+  optional bytes mac = 4;
+}
+
+message ErrorMsg {
+  required string description = 1;
+}
+
+message DhaSessionRequest {
+}
+
+message DhaMsg1 {
+  required bytes ga = 1;
+  required bytes targetinfo = 2;
+}
+
+message Report {
+  required bytes report_data = 1;
+  required bytes misc = 2;
+}
+
+message DhaMsg2 {
+  required bytes gb = 1;
+  required Report report = 2;
+  required bytes report_mac = 3;
+}
+
+message DhaMsg3 {
+  required Report report = 1;
+  required bytes report_mac = 2;
+}
