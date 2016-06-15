@@ -513,24 +513,6 @@ pub mod proto {
             Err(err) => Err(err),
         }
     }
-
-    // pub fn to_msg1(protobuf: Vec<u8>) -> Result<DhaMsg1, DecodeError> {
-    //     let msg_decoded: Result<super::rustcryptodhamsgs::DhaMsg1,ProtobufError> = parse_from_bytes(&protobuf);
-    //
-    //     match msg_decoded {
-    //         Ok(m) => { Ok(DhaMsg1{
-    //             ga: m.get_ga(),
-    //             targetinfo: TargetinfoWrapper(m.get_targetinfo),
-    //             // client_id: if c.has_client_id() { Some(c.get_client_id()) } else { None },
-    //             //                     msg_type: c.get_msg_type().to_string(),
-    //             //                     msg: { slice_to_vec(c.get_msg()) },
-    //             //                     mac: if c.has_mac() { Some(slice_to_vec(c.get_mac())) } else { None },
-    //                 })
-    //                         },
-    //         Err(err) => Err(DecodeError { description: err.description().to_string()}),
-    //     }
-    // }
-
 }
 
 // SMK / aek [out]
@@ -552,10 +534,6 @@ pub fn get_smk(n: &[u8], q: &[u8]) -> [u8; 16] {
     *tag
 }
 
-// let mut decipher = AesGcm::new(KeySize::KeySize256, key, nonce, aad);
-// let decrypted = &mut [];
-// println!("valid: {}", decipher.decrypt(output, decrypted, tag));
-
 use std::clone;
 pub fn slice_to_vec<T: clone::Clone>(slice: &[T]) -> Vec<T> {
     let mut v = vec!();
@@ -563,17 +541,13 @@ pub fn slice_to_vec<T: clone::Clone>(slice: &[T]) -> Vec<T> {
     v
 }
 
-
-
-
 //TODO error msg generation and handling -> create defined msg type!
 pub fn send_err_msg(err: String) -> Vec<u8> {
+    // info!("Received unknown or invalid msg: {:?}", &err); // TODO msg and err?!
     let mut msg = vec!();
-    msg.push(161u8); // "ERR"
-    for b in err.clone().into_bytes().into_iter() {
+    for b in b"ERR".iter().cloned().chain(err.into_bytes().into_iter()) {
         msg.push(b);
     }
-    info!("Received unknown or invalid msg: {:?} ({})", msg, err); // TODO msg and err?!
     msg
 }
 

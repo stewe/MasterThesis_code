@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["proto_path_to_rust_mod",""]]});
