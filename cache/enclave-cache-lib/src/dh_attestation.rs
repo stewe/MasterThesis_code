@@ -85,7 +85,6 @@ pub struct TargetinfoWrapper {
 }
 
 impl Encodable for TargetinfoWrapper {
-    // impl<T:Encodable> Encodable for Vec<T> {
     fn encode<S: Encoder>(&self, s: &mut S) -> Result<(), S::Error> {
         s.emit_seq(512, |s| {
             for (i, e) in self.targetinfo.iter().enumerate() {

@@ -1,5 +1,7 @@
-use super::enclave_cache_lib::dh_attestation::*;
-use super::enclave_cache_lib::*;
+use enclave_cache_lib::*;
+use enclave_cache_lib::dh_attestation::*;
+use enclave_cache_lib::rust_crypto_dha::*;
+
 use std::error::Error;
 
 static ENCLAVE_ID: u32 = 987654321u32;
@@ -63,10 +65,7 @@ pub fn foo() -> Vec<u8> {
 
 pub fn ecall_handle_request(msg: Vec<u8>) -> Vec<u8> {
     // TODO apply protocol (state)
-    let msg_decoded: Result<CacheMsg, DecodeError> = match MSG_FORMAT {
-        MsgFormat::Json => { json_::to_msg(msg) },
-        MsgFormat::Protobuf => { proto::to_cache_msg(proto::to_msg(msg)) }
-    };
+    let msg_decoded: Result<CacheMsg, DecodeError> = decode_cache_msg(msg, MSG_FORMAT);
     let result = match msg_decoded {
         Err(err) => send_err_msg(format!("Invalid or unknown message: {}", err)),
         Ok(m) => {  info!("Received request: {:?}", &m);
