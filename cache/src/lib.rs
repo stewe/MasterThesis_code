@@ -6,7 +6,7 @@ extern crate simple_logger;
 extern crate time;
 extern crate zmq;
 extern crate zmq_sys;
-extern crate enclave_cache_lib;
+extern crate msg_lib;
 extern crate sgx_isa;
 
 pub mod cache_enclave;

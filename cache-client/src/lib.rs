@@ -1,4 +1,4 @@
-extern crate enclave_cache_lib;
+extern crate msg_lib;
 extern crate sgx_isa;
 #[macro_use]
 extern crate log;

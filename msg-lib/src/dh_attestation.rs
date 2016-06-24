@@ -72,7 +72,7 @@ impl Report {
     }
 }
 
-#[derive(RustcDecodable, RustcEncodable)]
+#[derive(Debug, RustcDecodable, RustcEncodable)]
 pub struct DhaMsg3 {
     pub report: Report,
     pub report_mac: [u8; 16],

@@ -25,4 +25,4 @@ rust-crypto = "^0.2"
 rand = "0.3"
 rustc-serialize = "0.3"
 
-enclave_cache_lib = { path = "../cache/enclave-cache-lib"}
+msg_lib = { path = "../msg-lib"}

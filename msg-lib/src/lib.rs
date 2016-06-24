@@ -8,6 +8,7 @@ extern crate sgx_isa;
 
 extern crate rand;
 extern crate rustc_serialize;
+extern crate time;
 
 mod msg_json;
 mod msg_proto;
@@ -17,16 +18,18 @@ pub mod rust_crypto_dha;
 
 use crypto::aes::KeySize;
 use crypto::aes_gcm::*;
-use crypto::aead::AeadEncryptor;
+use crypto::aead::{AeadEncryptor, AeadDecryptor};
 use crypto::curve25519::curve25519;
 
 use rustc_serialize::{ Encodable, Decoder, Encoder };
 
 use std::error::Error;
 use std::fmt;
+use std::iter::repeat;
 use dh_attestation::*;
 // use sgx_isa::{Targetinfo};
 
+#[derive(Clone)]
 pub enum MsgPolicy {
     Plain,
     Authenticated,
@@ -46,6 +49,7 @@ pub struct DecodeError {
     description: String,
 }
 
+
 impl fmt::Display for DecodeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Decode error: {}", self.description)
@@ -58,13 +62,24 @@ impl Error for DecodeError {
     }
 }
 
+#[derive (Debug)]
+pub struct EncodeError {
+    description: String,
+}
+
+impl fmt::Display for EncodeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Decode error: {}", self.description)
+    }
+}
 
 #[derive(Debug, RustcDecodable, RustcEncodable)]
 pub struct CacheMsg {
-    pub client_id: Option<u32>,
     pub msg_type: String,
     pub msg: Vec<u8>,
-    pub mac: Option<Vec<u8>>
+    pub client_id: Option<u32>,
+    pub mac: Option<Vec<u8>>,
+    pub time: Option<i64>,
 }
 
 
@@ -78,6 +93,89 @@ pub fn decode_cache_msg(msg: Vec<u8>, format: MsgFormat) -> Result<CacheMsg, Dec
         MsgFormat::Json => { msg_json::to_msg(msg) },
         MsgFormat::Protobuf => { msg_proto::to_cache_msg(msg_proto::to_msg(msg)) }
     }
+}
+
+
+#[derive(Debug, RustcDecodable, RustcEncodable)]
+pub struct BoolMsg {
+    pub val: bool,
+}
+
+#[derive(Debug, RustcDecodable, RustcEncodable)]
+pub struct U8Msg {
+    pub val: u8,
+}
+
+// think about message builder: Builder::new().set_type(MsgType::Bool(val)).set_security(Sec::Authenticated(key)).set_format(MsgFormat::Json).build()
+
+pub fn encode_bool_msg(val: bool, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat) -> Result<Vec<u8>, EncodeError> {
+    let time = get_time_in_millis();
+    let p = (val, topic, policy, key, Some(time));
+    match msg_format {
+        MsgFormat::Json => msg_json::bool_msg(p.0, p.1, p.2, p.3, p.4),
+        MsgFormat::Protobuf => msg_proto::bool_msg(p.0, p.1, p.2, p.3, p.4),
+    }
+}
+
+pub fn encode_u8_msg(val: u8, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat) -> Result<Vec<u8>, EncodeError> {
+    let time = get_time_in_millis();
+    let p = (val, topic, policy, key, Some(time));
+    match msg_format {
+        MsgFormat::Json => msg_json::u8_msg(p.0, p.1, p.2, p.3, p.4),
+        MsgFormat::Protobuf => msg_proto::u8_msg(p.0, p.1, p.2, p.3, p.4),
+    }
+}
+
+pub fn validate(cache_msg: CacheMsg, key: [u8;16]) -> bool {
+    if cache_msg.mac.is_none() || cache_msg.time.is_none() { return false }
+
+    let nonce = produce_nonce(cache_msg.time.unwrap(), cache_msg.msg_type.as_str());
+    //  aad: includes msg_type, msg and timestamp
+    let mut aad: Vec<u8> = vec!();
+    aad.extend_from_slice(cache_msg.msg_type.as_bytes());
+    // only for validation
+    aad.extend_from_slice(&cache_msg.msg);
+    aad.extend_from_slice(&nonce[0..8]); // = time
+    let mut cipher = AesGcm::new(KeySize::KeySize128, &key, &nonce, &aad);
+    cipher.decrypt(&[], &mut [], &cache_msg.mac.unwrap())
+}
+
+pub fn decrypt(cache_msg: CacheMsg, key: [u8;16]) -> (bool, Vec<u8>) {
+    if cache_msg.mac.is_none() || cache_msg.time.is_none() { return (false, vec!()) }
+
+    let nonce = produce_nonce(cache_msg.time.unwrap(), cache_msg.msg_type.as_str());
+    //  aad: includes msg_type and timestamp
+    let mut aad: Vec<u8> = vec!();
+    aad.extend_from_slice(cache_msg.msg_type.as_bytes());
+    aad.extend_from_slice(&nonce[0..8]); // = time
+    let mut cipher = AesGcm::new(KeySize::KeySize128, &key, &nonce, &aad);
+    let mut output: Vec<u8> = repeat(0).take(cache_msg.msg.len()).collect();
+    (cipher.decrypt(&cache_msg.msg, output.as_mut_slice(), &cache_msg.mac.unwrap()), output)
+}
+
+// pub fn decode_bool_msg() -> Result<> {
+//
+// }
+
+pub fn get_time_in_millis() -> i64 {
+    let now = time::get_time();
+    now.sec * 1000 + (now.nsec / 1000) as i64
+}
+
+pub fn produce_nonce(time: i64, msg_type: &str) -> [u8;12] {
+    let mut nonce: [u8;12] = [0u8;12];
+    let mut num = time;
+    for i in 0..8 {
+        nonce[i] = (num & 0b11111111) as u8;
+        num = num >> 8;
+    }
+    let mut rem = msg_type.len();
+    if rem > 4 {rem = 4;}
+    let tmp = msg_type.as_bytes();
+    for i in 0..rem {
+        nonce[8+i] = tmp[i];
+    }
+    nonce
 }
 
 

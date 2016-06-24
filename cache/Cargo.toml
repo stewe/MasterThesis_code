@@ -29,4 +29,4 @@ slab = "0.2.0"
 
 sgx-isa = "^0.1"
 
-enclave_cache_lib = { path = "enclave-cache-lib"}
+msg_lib = { path = "../msg-lib"}

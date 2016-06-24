@@ -1,14 +1,14 @@
-use enclave_cache_lib::*;
-use enclave_cache_lib::dh_attestation::*;
-use enclave_cache_lib::rust_crypto_dha::*;
+use msg_lib::*;
+use msg_lib::dh_attestation::*;
+use msg_lib::rust_crypto_dha::*;
 
 use std::error::Error;
 
 static ENCLAVE_ID: u32 = 987654321u32;
 
 // configure which format to use
-// const MSG_FORMAT: MsgFormat = MsgFormat::Json;
-const MSG_FORMAT: MsgFormat = MsgFormat::Protobuf;
+const MSG_FORMAT: MsgFormat = MsgFormat::Json;
+// const MSG_FORMAT: MsgFormat = MsgFormat::Protobuf;
 
 static mut DHA: RustCryptoDHA = RustCryptoDHA{
     state: DhaState::Initator(DhaInitiatorState::Start),
@@ -96,7 +96,6 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<u8> {
                     Err(err) => send_err_msg(err.description().to_string()),
                 };
                 DHA.state = DhaState::Initator(DhaInitiatorState::Msg2Sent);
-                info!("DHA = {:?}", DHA);
                 msg2
             }
         },
@@ -109,6 +108,7 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<u8> {
                 Err(err) => send_err_msg(err.description().to_string()),
             };
             DHA.state = DhaState::Responder(DhaResponderState::Active);
+            info!("DHA = {:?}", DHA);
             resp
         },
         // "ERR" => {  },   // TODO

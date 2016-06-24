@@ -1,13 +1,16 @@
-use super::enclave_cache_lib::dh_attestation::*;
-use super::enclave_cache_lib::*; //{CacheMsg, from_json_to_cache_msg, from_protobuf_to_cache_msg, MsgFormat, RustCryptoDHA};
+use msg_lib::*;
+use msg_lib::dh_attestation::*;
+use msg_lib::rust_crypto_dha::*;
+//{CacheMsg, from_json_to_cache_msg, from_protobuf_to_cache_msg, MsgFormat, RustCryptoDHA};
+
 // use super::lazy_static;
 // use super::sgx_isa::Targetinfo;
 use std::collections::HashMap;
 use std::error::Error;
 
 // configure which format to use
-// const MSG_FORMAT: MsgFormat = MsgFormat::Json;
-const MSG_FORMAT: MsgFormat = MsgFormat::Protobuf;
+const MSG_FORMAT: MsgFormat = MsgFormat::Json;
+// const MSG_FORMAT: MsgFormat = MsgFormat::Protobuf;
 
 // static ENCLAVE_ID: u32 = 123456789u32;
 
@@ -42,13 +45,10 @@ pub fn ecall_handle_request(msg: Vec<u8>) -> Vec<u8> {
     unsafe { if !INITIALIZED { initialize(); } }
 
     // TODO apply protocol (state)
-    let msg_decoded = match MSG_FORMAT {
-        MsgFormat::Json => { json_::to_cache_msg(msg) },
-        MsgFormat::Protobuf => { proto::to_cache_msg(proto::to_msg(msg)) }
-    };
+    let msg_decoded = decode_cache_msg(msg, MSG_FORMAT);
     let result = match msg_decoded {
         Err(err) => send_err_msg(err.description().to_string()),
-        Ok(m) => {  info!("Received request: {:?}", &m);
+        Ok(m) => {  //info!("Received request: {:?}", &m);
                     let resp = handle_request(m);
                     // info!("Response: {:?}", resp);
                     resp }};
@@ -62,6 +62,7 @@ unsafe fn initialize() {
 }
 
 fn handle_request(cache_msg: CacheMsg) -> Vec<u8> {
+    info!("Received request: {:?}", &cache_msg);
     if cache_msg.mac.is_some() {
         // TODO
         // get SMK for cache_msg.enclave_id
@@ -69,6 +70,39 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<u8> {
     }
 
     // decode match MSG_FORMAT...
+    if cache_msg.msg_type.starts_with("pub/") {
+
+        let mut key  = [0u8;16];
+        key = (0..16).into_iter().fold(key, |mut acc, x| { acc[x] = x as u8; acc });
+        info!("key: {:?}", key);
+
+        // put match into a lib function or write
+        let msg_type = cache_msg.msg_type.clone();
+        let topic = msg_type.split_at(4).1;
+        match topic {
+            "unclutch" | "voltage" | "speed-error" | "speed-unsafe" => {
+                info!("SCHUBIDU!");
+                // put into cache, either plain value (authenticated with timestamp=version by cache, or authenticated/encrypted msg (as received))
+                // dependent on mac, if no mac: cache ensures confidentiality
+                // test MAC validation
+                // info!("MAC valididation successful: {}", validate(cache_msg, key));
+                let (valid, decrypted) = decrypt(cache_msg, key);
+                info!("MAC encryption valid: {}, result: {:?}", valid, decrypted );
+            },
+            "clamp15" => {
+                // test MAC validation
+                info!("MAC valididation successful: {}", validate(cache_msg, key));
+                // let (valid, decrypted) = decrypt(cache_msg, key);
+                // info!("MAC encryption valid: {}, result: {:?}", valid, decrypted );
+            },
+            _ => {
+                info!("FAIL! ...unknown /published sensor message.");
+            }, // should not match, since the filters are defined precisely
+        };
+        return vec!()
+        // info!("{:?}", cache_msg.msg_type[4..].to_string()); // check!!!
+    }
+
     match cache_msg.msg_type.as_str() {
         "REQ" =>  {
             // 1st
@@ -106,6 +140,7 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<u8> {
                                 Err(err) => send_err_msg(err.description().to_string()),
                             };
                             dha.state = DhaState::Responder(DhaResponderState::Active);
+                            info!("DHA = {:?}", dha);
                             msg3
                         }}}}
         },

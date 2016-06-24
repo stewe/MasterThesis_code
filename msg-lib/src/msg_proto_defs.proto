@@ -1,8 +1,9 @@
 message CacheMsg {
-  optional uint32 client_id = 1;
-  required string msg_type = 2;
-  required bytes msg = 3;
+  required string msg_type = 1;
+  required bytes msg = 2;
+  optional uint32 client_id = 3;
   optional bytes mac = 4;
+  optional int64 time = 5;
 }
 
 message ErrorMsg {
@@ -31,4 +32,12 @@ message DhaMsg2 {
 message DhaMsg3 {
   required Report report = 1;
   required bytes report_mac = 2;
+}
+
+message BoolMsg {
+  required bool val = 1;
+}
+
+message U8Msg {
+  required uint32 val = 1;
 }
