@@ -1,3 +1,5 @@
+use super::*;
+
 use msg_lib::*;
 use msg_lib::dh_attestation::*;
 use msg_lib::rust_crypto_dha::*;
@@ -11,6 +13,9 @@ use std::error::Error;
 // configure which format to use
 const MSG_FORMAT: MsgFormat = MsgFormat::Json;
 // const MSG_FORMAT: MsgFormat = MsgFormat::Protobuf;
+
+const CAPACITY: usize = 10000;
+const EXPIRATION: i64 = 10000;
 
 // static ENCLAVE_ID: u32 = 123456789u32;
 
@@ -39,12 +44,13 @@ static mut INITIALIZED: bool = false;
 static mut CLIENTS: *mut HashMap<u32, RustCryptoDHA>
                     = 0 as *mut HashMap<u32, RustCryptoDHA>;
 
+static mut SUB_CACHE: *mut SubscriptionCache = 0 as *mut SubscriptionCache;
+
 
 pub fn ecall_handle_request(msg: Vec<u8>) -> Vec<u8> {
 
     unsafe { if !INITIALIZED { initialize(); } }
 
-    // TODO apply protocol (state)
     let msg_decoded = decode_cache_msg(msg, MSG_FORMAT);
     let result = match msg_decoded {
         Err(err) => send_err_msg(err.description().to_string()),
@@ -58,6 +64,10 @@ pub fn ecall_handle_request(msg: Vec<u8>) -> Vec<u8> {
 unsafe fn initialize() {
     let clients = Box::new(HashMap::<u32, RustCryptoDHA>::new());
     CLIENTS = Box::into_raw(clients);
+
+    let sub_cache = Box::new(SubscriptionCache::new(CAPACITY, EXPIRATION));
+    SUB_CACHE = Box::into_raw(sub_cache);
+
     INITIALIZED = true;
 }
 
@@ -82,25 +92,49 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<u8> {
         match topic {
             "unclutch" | "voltage" | "speed-error" | "speed-unsafe" => {
                 info!("SCHUBIDU!");
-                // put into cache, either plain value (authenticated with timestamp=version by cache, or authenticated/encrypted msg (as received))
                 // dependent on mac, if no mac: cache ensures confidentiality
                 // test MAC validation
-                // info!("MAC valididation successful: {}", validate(cache_msg, key));
-                let (valid, decrypted) = decrypt(cache_msg, key);
+                // info!("MAC valididation successful: {}", validate(&cache_msg, key));
+                let (valid, decrypted) = decrypt_cache_msg(&cache_msg, key);
                 info!("MAC encryption valid: {}, result: {:?}", valid, decrypted );
             },
             "clamp15" => {
                 // test MAC validation
-                info!("MAC valididation successful: {}", validate(cache_msg, key));
-                // let (valid, decrypted) = decrypt(cache_msg, key);
+                info!("MAC valididation successful: {}", validate_cache_msg(&cache_msg, key));
+                // let (valid, decrypted) = decrypt(&cache_msg, key);
                 // info!("MAC encryption valid: {}, result: {:?}", valid, decrypted );
             },
             _ => {
-                info!("FAIL! ...unknown /published sensor message.");
-            }, // should not match, since the filters are defined precisely
+                // should not match, since the filters are defined precisely
+                warn!("FAIL! ...unknown /published sensor message.");
+                return vec!()
+            },
         };
+
+        let time = match cache_msg.time {
+            Some(t) => t,
+            None => get_time_in_millis(),
+
+        };
+        // put into cache, either plain value (authenticated with timestamp=version by cache, or authenticated/encrypted msg (as received))
+        // problem: when message is protected by sensor, cache needs the key for authentication (which is okay, since clients need it too.)
+        // if key is not availabe to cache, it needs to protect the msg itself.
+        // so, sha or aes-gcm?
+
+        // expecting the cache has the key.
+        let mac = match cache_msg.mac {
+            Some(m) => m,
+            None => {
+                // TODO authentication vs. encryption
+                authenticate(cache_msg.msg_type.as_str(), time, &cache_msg.msg, &key)
+            }
+        };
+
+        unsafe {
+            (*SUB_CACHE).insert(msg_type.as_str(), time, cache_msg.msg, mac);
+        }
+
         return vec!()
-        // info!("{:?}", cache_msg.msg_type[4..].to_string()); // check!!!
     }
 
     match cache_msg.msg_type.as_str() {

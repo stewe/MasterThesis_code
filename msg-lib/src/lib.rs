@@ -126,31 +126,66 @@ pub fn encode_u8_msg(val: u8, topic: &str, policy: MsgPolicy, key: Option<[u8;16
     }
 }
 
-pub fn validate(cache_msg: CacheMsg, key: [u8;16]) -> bool {
-    if cache_msg.mac.is_none() || cache_msg.time.is_none() { return false }
+pub fn authenticate(msg_type: &str, time: i64, msg: &Vec<u8>, key: &[u8]) -> Vec<u8> {
+    let nonce = produce_nonce(time, msg_type);    // TODO?
 
-    let nonce = produce_nonce(cache_msg.time.unwrap(), cache_msg.msg_type.as_str());
     //  aad: includes msg_type, msg and timestamp
     let mut aad: Vec<u8> = vec!();
-    aad.extend_from_slice(cache_msg.msg_type.as_bytes());
-    // only for validation
-    aad.extend_from_slice(&cache_msg.msg);
+    aad.extend_from_slice(msg_type.as_bytes());
+    aad.extend_from_slice(&msg);
     aad.extend_from_slice(&nonce[0..8]); // = time
-    let mut cipher = AesGcm::new(KeySize::KeySize128, &key, &nonce, &aad);
-    cipher.decrypt(&[], &mut [], &cache_msg.mac.unwrap())
+    let mut cipher = AesGcm::new(KeySize::KeySize128, key, &nonce, &aad);
+    let mac = &mut [0;16];
+    cipher.encrypt(&[], &mut [], mac);
+    slice_to_vec(mac)
 }
 
-pub fn decrypt(cache_msg: CacheMsg, key: [u8;16]) -> (bool, Vec<u8>) {
-    if cache_msg.mac.is_none() || cache_msg.time.is_none() { return (false, vec!()) }
-
-    let nonce = produce_nonce(cache_msg.time.unwrap(), cache_msg.msg_type.as_str());
+pub fn encrypt(msg_type: &str, time: i64, msg: &Vec<u8>, key: &[u8]) -> (Vec<u8>, [u8;16]){
+    let nonce = produce_nonce(time, msg_type);
     //  aad: includes msg_type and timestamp
     let mut aad: Vec<u8> = vec!();
-    aad.extend_from_slice(cache_msg.msg_type.as_bytes());
+    aad.extend_from_slice(msg_type.as_bytes());
     aad.extend_from_slice(&nonce[0..8]); // = time
     let mut cipher = AesGcm::new(KeySize::KeySize128, &key, &nonce, &aad);
-    let mut output: Vec<u8> = repeat(0).take(cache_msg.msg.len()).collect();
-    (cipher.decrypt(&cache_msg.msg, output.as_mut_slice(), &cache_msg.mac.unwrap()), output)
+    let mac = &mut [0;16];
+    let mut output: Vec<u8> = repeat(0).take(msg.len()).collect();
+    cipher.encrypt(&msg, output.as_mut_slice(), mac);
+
+    (output, *mac)
+}
+
+
+pub fn validate_cache_msg(cache_msg: &CacheMsg, key: [u8;16]) -> bool {
+    if cache_msg.mac.is_none() || cache_msg.time.is_none() { return false }
+    validate(&cache_msg.mac.clone().unwrap(), cache_msg.time.unwrap(), &cache_msg.msg_type, &cache_msg.msg, key)
+}
+
+pub fn validate(mac: &Vec<u8>, time: i64, msg_type: &String, msg: &Vec<u8>, key: [u8;16]) -> bool {
+    let nonce = produce_nonce(time, msg_type.as_str());
+    //  aad: includes msg_type, msg and timestamp
+    let mut aad: Vec<u8> = vec!();
+    aad.extend_from_slice(msg_type.as_bytes());
+    // only for validation
+    aad.extend_from_slice(&msg);
+    aad.extend_from_slice(&nonce[0..8]); // = time
+    let mut cipher = AesGcm::new(KeySize::KeySize128, &key, &nonce, &aad);
+    cipher.decrypt(&[], &mut [], &mac)
+}
+
+pub fn decrypt_cache_msg(cache_msg: &CacheMsg, key: [u8;16]) -> (bool, Vec<u8>) {
+    if cache_msg.mac.is_none() || cache_msg.time.is_none() { return (false, vec!()) }
+    decrypt(&cache_msg.mac.clone().unwrap(), cache_msg.time.unwrap(), &cache_msg.msg_type, &cache_msg.msg, key)
+}
+
+pub fn decrypt(mac: &Vec<u8>, time: i64, msg_type: &String, msg: &Vec<u8>, key: [u8;16]) -> (bool, Vec<u8>) {
+    let nonce = produce_nonce(time, msg_type.as_str());
+    //  aad: includes msg_type and timestamp
+    let mut aad: Vec<u8> = vec!();
+    aad.extend_from_slice(msg_type.as_bytes());
+    aad.extend_from_slice(&nonce[0..8]); // = time
+    let mut cipher = AesGcm::new(KeySize::KeySize128, &key, &nonce, &aad);
+    let mut output: Vec<u8> = repeat(0).take(msg.len()).collect();
+    (cipher.decrypt(&msg, output.as_mut_slice(), &mac), output)
 }
 
 // pub fn decode_bool_msg() -> Result<> {

@@ -1,14 +1,10 @@
 use rustc_serialize::{ Encodable, Decodable};
 use rustc_serialize::json;
 use {BoolMsg, CacheMsg, DecodeError, EncodeError, MsgPolicy, U8Msg};
-use {get_time_in_millis, produce_nonce, slice_to_vec};
+use {get_time_in_millis, slice_to_vec};
 use dh_attestation::*;
 use std::error::Error;
-use std::iter::repeat;
 
-use crypto::aes::KeySize;
-use crypto::aes_gcm::*;
-use crypto::aead::{AeadEncryptor};
 
 
 // no pure json! msg_type+json
@@ -29,33 +25,14 @@ fn to_json<M: Encodable>(msg_type: &str, msg: &M, client_id: Option<u32>, policy
         MsgPolicy::Authenticated => {
             if key.is_none() { return Err( EncodeError { description: "No key given for MAC calculation.".to_string() })}
             msg_body = json::encode(&msg).unwrap().into_bytes();
-            let nonce = produce_nonce(time, msg_type);    // TODO?
-
-            //  aad: includes msg_type, msg and timestamp
-            let mut aad: Vec<u8> = vec!();
-            aad.extend_from_slice(msg_type.as_bytes());
-            aad.extend_from_slice(&msg_body);
-            aad.extend_from_slice(&nonce[0..8]); // = time
-            let mut cipher = AesGcm::new(KeySize::KeySize128, &key.unwrap(), &nonce, &aad);
-            let report_mac = &mut [0;16];
-            cipher.encrypt(&[], &mut [], report_mac);
-            Some(slice_to_vec(report_mac))
+            Some(super::authenticate(msg_type, time, &msg_body, &key.unwrap()))
         },
         MsgPolicy::Encrypted => {
             if key.is_none() { return Err( EncodeError { description: "No key given for encryption.".to_string() })}
             let plain_msg_body = json::encode(&msg).unwrap().into_bytes();
-
-            let nonce = produce_nonce(time, msg_type);
-            //  aad: includes msg_type and timestamp
-            let mut aad: Vec<u8> = vec!();
-            aad.extend_from_slice(msg_type.as_bytes());
-            aad.extend_from_slice(&nonce[0..8]); // = time
-            let mut cipher = AesGcm::new(KeySize::KeySize128, &key.unwrap(), &nonce, &aad);
-            let report_mac = &mut [0;16];
-            let mut output: Vec<u8> = repeat(0).take(plain_msg_body.len()).collect();
-            cipher.encrypt(&plain_msg_body, output.as_mut_slice(), report_mac);
+            let (output, mac) = super::encrypt(msg_type, time, &plain_msg_body, &key.unwrap());
             msg_body = output;
-            Some(slice_to_vec(report_mac))
+            Some(slice_to_vec(&mac))
         },
     };
 

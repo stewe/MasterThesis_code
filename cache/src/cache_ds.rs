@@ -29,7 +29,7 @@ impl<K, V> CacheDS<K, V> where K: PartialOrd + Ord + Clone + Hash {
             capacity: capacity,
             map: HashMap::with_capacity(capacity),
             list: VecDeque::new(),
-            slab: Slab::new(capacity),
+            slab: Slab::new(capacity),  // TODO remove slab from CacheDS, put it into lib, i.e. lib decides whethet slab, unsafe memory or whatever
         }
     }
 

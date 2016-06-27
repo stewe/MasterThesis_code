@@ -45,6 +45,7 @@ fn main() {
     let mut sensor_type = SensorType::Undefined;
     let mut policy = MsgPolicy:: Plain;
     let mut format = MsgFormat::Protobuf;
+    let mut port = String::new();
 
     let key  = [0u8;16];
     let mut key = Some((0..16).into_iter().fold(key, |mut acc, x| { acc[x] = x as u8; acc }));
@@ -64,7 +65,7 @@ fn main() {
                     _ => panic!("Unknwon sensor type. Use one of the following:\nunclutch voltage speed-error speed-unsafe clamp15"),
                 }
             },
-            "p=" => {
+            "m=" => {
                 policy = match val {
                     "plain" => { key = None; MsgPolicy::Plain },
                     "mac" => MsgPolicy::Authenticated,
@@ -79,6 +80,9 @@ fn main() {
                     _ => panic!("Unknwon message format. Use one of the following:\njson protobuf"),
                 }
             },
+            "p=" => {
+                port = String::new() + val;
+            },
             _ => panic!("Invalid argument: {}", arg),
         }
     }
@@ -87,7 +91,7 @@ fn main() {
 
     let mut ctx = Context::new();
     let mut socket: Socket = ctx.socket(zmq::PUB).unwrap();
-    socket.bind("tcp://*:5551").unwrap();
+    socket.bind(format!("tcp://*:{}", port).as_str()).unwrap();
 
 loop {
     for _ in 0..5 {

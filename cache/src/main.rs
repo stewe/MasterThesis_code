@@ -85,6 +85,11 @@ pub fn init_subscriber_socket(ctx: &mut Context) -> Socket {
 
         // socket.connect("tcp://localhost:5555").unwrap();
         socket.connect("tcp://localhost:5551").unwrap();
+        socket.connect("tcp://localhost:5552").unwrap();
+        socket.connect("tcp://localhost:5553").unwrap();
+        socket.connect("tcp://localhost:5554").unwrap();
+        socket.connect("tcp://localhost:5554").unwrap();
+        socket.connect("tcp://localhost:5556").unwrap();
 
         // subscribe to unclutch json
         socket.set_subscribe("{\"msg_type\":\"pub/unclutch\",".as_bytes()).unwrap();
