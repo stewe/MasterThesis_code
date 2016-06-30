@@ -1,14 +1,23 @@
 use rustc_serialize::{ Encodable, Decodable};
 use rustc_serialize::json;
-use {BoolMsg, CacheMsg, DecodeError, EncodeError, MsgPolicy, U8Msg};
+use {BoolMsg, BytesVecMsg, CacheMsg, DecodeError, EncodeError, MsgPolicy, U8Msg};
 use {get_time_in_millis, slice_to_vec};
 use dh_attestation::*;
 use std::error::Error;
 
+pub fn to_json_all_given(msg: Vec<u8>, msg_type: &str, mac: Option<Vec<u8>>, time: i64) -> Result<Vec<u8>, EncodeError> {
+    let result = CacheMsg { msg_type: msg_type.to_string(), msg: msg, client_id: None, mac: mac, time: Some(time) };
+    Ok(json::encode(&result).unwrap().into_bytes())
+}
+
+pub fn to_json<M: Encodable>(msg_type: &str, msg: &M, client_id: Option<u32>, policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>)
+    -> Result<Vec<u8>, EncodeError> {
+        let msg_bytes = json::encode(&msg).unwrap().into_bytes();
+        to_json_from_bytes_msg(msg_type, msg_bytes, client_id, policy, key, time)
+    }
 
 
-// no pure json! msg_type+json
-fn to_json<M: Encodable>(msg_type: &str, msg: &M, client_id: Option<u32>, policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>)
+pub fn to_json_from_bytes_msg(msg_type: &str, msg: Vec<u8>, client_id: Option<u32>, policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>)
     -> Result<Vec<u8>, EncodeError> {
     let msg_body;
 
@@ -19,17 +28,17 @@ fn to_json<M: Encodable>(msg_type: &str, msg: &M, client_id: Option<u32>, policy
 
     let mac = match policy {
         MsgPolicy::Plain => {
-            msg_body = json::encode(&msg).unwrap().into_bytes(); // TODO error handling! ???
+            msg_body = msg;
             None
         },
         MsgPolicy::Authenticated => {
             if key.is_none() { return Err( EncodeError { description: "No key given for MAC calculation.".to_string() })}
-            msg_body = json::encode(&msg).unwrap().into_bytes();
+            msg_body = msg;
             Some(super::authenticate(msg_type, time, &msg_body, &key.unwrap()))
         },
         MsgPolicy::Encrypted => {
             if key.is_none() { return Err( EncodeError { description: "No key given for encryption.".to_string() })}
-            let plain_msg_body = json::encode(&msg).unwrap().into_bytes();
+            let plain_msg_body = msg;
             let (output, mac) = super::encrypt(msg_type, time, &plain_msg_body, &key.unwrap());
             msg_body = output;
             Some(slice_to_vec(&mac))
@@ -74,6 +83,11 @@ pub fn bool_msg(val: bool, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;1
 
 pub fn u8_msg(val: u8, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>) -> Result<Vec<u8>, EncodeError> {
     let msg = U8Msg { val: val };
+    to_json(topic, &msg, None, msg_policy, key, time)
+}
+
+pub fn bytes_vec_msg(val: Vec<Vec<u8>>, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>) -> Result<Vec<u8>, EncodeError> {
+    let msg = BytesVecMsg { val: val };
     to_json(topic, &msg, None, msg_policy, key, time)
 }
 

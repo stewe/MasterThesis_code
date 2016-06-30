@@ -14,6 +14,7 @@ pub mod cache_enclave;
 pub mod cache_ds; // TODO pub necessary???
 
 use cache_ds::*;
+use msg_lib::{get_time_in_millis, validate};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use time::{Duration, now, Timespec};
@@ -140,19 +141,24 @@ pub fn print_arc_queues(queues: &HashMap<String, Arc<Mutex<VecDeque<(String, Tim
 
 
 
-pub struct SubscriptionCache {
+pub struct SubscriptionCache<V> {
+    /// capacity per subscription
     capacity: usize,
     expiration: i64,
     // #[allow(dead_code)] // TODO
-    map: HashMap<String, Vec<(i64, Vec<u8>, Vec<u8>)>>,
+    // String: msg_type
+    // i64: time; V: msg; Vec<u8>: MAC
+    map: HashMap<String, VecDeque<(i64, V, Vec<u8>)>>,
+    key: [u8;16],
 }
 
-impl SubscriptionCache {
-    pub fn new(capacity: usize, expiration: i64) -> SubscriptionCache {
+impl SubscriptionCache<Vec<u8>> {
+    pub fn new(capacity: usize, expiration: i64, key: [u8;16]) -> SubscriptionCache<Vec<u8>> {
         SubscriptionCache {
             capacity: capacity,
             expiration: expiration,
             map: HashMap::new(),
+            key: key,
         }
     }
 
@@ -160,11 +166,12 @@ impl SubscriptionCache {
         let key = msg_type.to_string();
         if self.map.contains_key(&key) {
             if let Some(l) = self.map.get_mut(&key) {
-                (*l).push((timestamp, msg, mac));
+                Self::cleanup(l, self.expiration, self.capacity);
+                (*l).push_front((timestamp, msg, mac));
             }
         } else {
-            let mut list = vec!();
-                list.push((timestamp, msg, mac));
+            let mut list = VecDeque::with_capacity(self.capacity);
+                list.push_front((timestamp, msg, mac));
                 self.map.insert(key, list);
         }
 
@@ -172,8 +179,46 @@ impl SubscriptionCache {
         info!("cache contains: {:?}", self.get_size_per_entry());
     }
 
+    /// returns collection from newest to oldest
+    pub fn get(&self, msg_type: &str, n: Option<usize>) -> Vec<(i64, Vec<u8>, Vec<u8>)> {
+        let list = self.map.get(msg_type);
+        if list.is_none() { return vec!() }
+
+        let n = match n {
+            Some(v) => v,
+            None => self.capacity,
+        };
+        let mut result = vec!();
+        for (i, item) in list.unwrap().into_iter().enumerate() {
+            let msg = item.1.clone(); // TODO resolve data from pointer (unsafe memory / slab)
+            //if value is valid
+            if validate(&item.2, item.0, &msg_type.to_string(), &msg, self.key) {
+                result.push(item.clone());
+            } else {
+                // TODO remove data and entry, since data is corrupted
+            }
+            if i == n { return result }
+        }
+
+        result
+    }
+
     pub fn get_size_per_entry(&self) -> Vec<(String, usize)> {
         self.map.iter().fold(vec!(), |mut acc, (key, val)| { acc.push((key.clone(), val.len())); acc } )
+    }
+
+    fn cleanup(list: &mut VecDeque<(i64, Vec<u8>, Vec<u8>)>, expiration: i64, capacity: usize) {
+        let time = get_time_in_millis();
+        loop {
+            match list.back(){
+                Some(item) if item.0 + expiration <= time => {},
+                _ => { break },
+            };
+            list.pop_back();
+        }
+        while list.len() >= capacity {
+            list.pop_back();
+        }
     }
 
 

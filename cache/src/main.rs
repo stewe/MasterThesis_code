@@ -25,6 +25,8 @@ use zmq::{Socket, Context, DONTWAIT, poll, POLLIN};
 fn main() {
     // env_logger::init().unwrap();
     simple_logger::init().unwrap();
+
+
     info!("Cache started.");
 
     // let mut cache_enclave = CacheEnclave::new_default();
@@ -39,6 +41,8 @@ fn main() {
         // TODO the first published message will not arrive -> send some dummy message(s)
         // use REP socket for sub-requests
         // TODO publisher socket
+        let mut publisher: Socket = ctx.socket(zmq::PUB).unwrap();
+        publisher.bind("tcp://*:5560").unwrap();
 
         let mut subscriber = init_subscriber_socket(&mut ctx);
 
@@ -51,8 +55,17 @@ fn main() {
                             match socket.recv_bytes(DONTWAIT) { // TODO adapt to message format (e.g. google protocol buffers); handle in an approriate way!
                                 Ok(msg) =>  {
                                     info!("msg: {:?}", &msg);
-                                    let resp = cache_enclave::ecall_handle_request(msg);
-                                    if !resp.is_empty() { socket.send(&resp, 0).unwrap(); }
+                                    let responses = cache_enclave::ecall_handle_request(msg);
+                                    match responses.len() {
+                                        0 => {},
+                                        1 => { socket.send(&responses.first().unwrap(), 0).unwrap(); },
+                                        _ => {
+                                            socket.send(&responses.first().unwrap(), 0).unwrap();
+                                            for resp in responses.iter().skip(1) {
+                                                publisher.send(&resp, 0).unwrap();
+                                            }
+                                        },
+                                    }
                                 },
                                 _  => { break }
                             }
@@ -61,8 +74,8 @@ fn main() {
                             match subscriber.recv_bytes(DONTWAIT) { // TODO adapt to message format (e.g. google protocol buffers); handle in an approriate way!
                                 Ok(msg) =>  {
                                     info!("msg: {:?}", &msg);
-                                    let resp = cache_enclave::ecall_handle_request(msg);
-                                    if !resp.is_empty() { subscriber.send(&resp, 0).unwrap(); }
+                                    let _ = cache_enclave::ecall_handle_sub_msg(msg);
+                                    // for resp in responses { subscriber.send(&resp, 0).unwrap(); }
                                 },
                                 _  => { break }
                             }
@@ -88,24 +101,22 @@ pub fn init_subscriber_socket(ctx: &mut Context) -> Socket {
         socket.connect("tcp://localhost:5552").unwrap();
         socket.connect("tcp://localhost:5553").unwrap();
         socket.connect("tcp://localhost:5554").unwrap();
-        socket.connect("tcp://localhost:5554").unwrap();
-        socket.connect("tcp://localhost:5556").unwrap();
+        socket.connect("tcp://localhost:5555").unwrap();
 
-        // subscribe to unclutch json
-        socket.set_subscribe("{\"msg_type\":\"pub/unclutch\",".as_bytes()).unwrap();
-        // subscribe to unclutch protobuf
-        // socket.set_subscribe(&[10, 12, 112, 117, 98, 47, 117, 110, 99, 108, 117, 116, 99, 104]).unwrap();
-        socket.set_subscribe("\n\u{c}pub/unclutch".as_bytes()).unwrap();
+        let filters: [(&str,&[u8]);5] = [
+            ("clamp15", &[10, 7, 99, 108, 97, 109, 112, 49, 53]),
+            ("voltage", &[10, 15, 105, 110, 118, 97, 108, 105, 100]),
+            ("unlcutch", &[10, 8, 117, 110, 99, 108, 117, 116, 99, 104]),
+            ("speed-error", &[10, 11, 115, 112, 101, 101, 100, 45, 101, 114, 114, 111, 114]),
+            ("speed-unsafe", &[10, 12, 115, 112, 101, 101, 100, 45, 117, 110, 115, 97, 102, 101]),
+        ];
 
-        // subscribe to clamp15 json
-        socket.set_subscribe("{\"msg_type\":\"pub/clamp15\",".as_bytes()).unwrap();
-        // subscribe to clamp15 protobuf
-        socket.set_subscribe("\n\u{b}pub/clamp15".as_bytes()).unwrap();
-
+        for f in filters.iter() {
+            socket.set_subscribe(format!("{}{}", "{\"msg_type\":\"", f.0).as_bytes()).unwrap();
+            socket.set_subscribe(f.1).unwrap();
+        }
 
         // socket.set_subscribe(&[]).unwrap(); // every message
-        // socket.set_subscribe("2".as_bytes()).unwrap();
-        // socket.set_subscribe("a".as_bytes()).unwrap();
 
     socket
 }

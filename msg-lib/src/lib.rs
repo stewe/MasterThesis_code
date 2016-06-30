@@ -88,6 +88,22 @@ pub struct ErrorMsg {
     pub description: String,
 }
 
+pub fn encode_cache_msg(msg: Vec<u8>, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, time: i64, msg_format: MsgFormat) -> Result<Vec<u8>, EncodeError> {
+    let p = (topic, msg, None, policy, key, Some(time));
+    match msg_format {
+        MsgFormat::Json => msg_json::to_json_from_bytes_msg(p.0, p.1, p.2, p.3, p.4, p.5),
+        MsgFormat::Protobuf => msg_proto::to_proto_from_bytes_msg(p.0, p.1, p.2, p.3, p.4, p.5),
+    }
+}
+
+pub fn encode_all_given(msg: Vec<u8>, msg_type: &str, mac: Option<Vec<u8>>, time: i64, msg_format: MsgFormat) -> Result<Vec<u8>, EncodeError> {
+    let p = (msg, msg_type, mac, time);
+    match msg_format {
+        MsgFormat::Json => msg_json::to_json_all_given(p.0, p.1, p.2, p.3),
+        MsgFormat::Protobuf => msg_proto::to_proto_all_given(p.0, p.1, p.2, p.3),
+    }
+}
+
 pub fn decode_cache_msg(msg: Vec<u8>, format: MsgFormat) -> Result<CacheMsg, DecodeError> {
     match format {
         MsgFormat::Json => { msg_json::to_msg(msg) },
@@ -106,6 +122,12 @@ pub struct U8Msg {
     pub val: u8,
 }
 
+#[derive(Debug, RustcDecodable, RustcEncodable)]
+pub struct BytesVecMsg {
+    pub val: Vec<Vec<u8>>,
+}
+
+
 // think about message builder: Builder::new().set_type(MsgType::Bool(val)).set_security(Sec::Authenticated(key)).set_format(MsgFormat::Json).build()
 
 pub fn encode_bool_msg(val: bool, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat) -> Result<Vec<u8>, EncodeError> {
@@ -123,6 +145,15 @@ pub fn encode_u8_msg(val: u8, topic: &str, policy: MsgPolicy, key: Option<[u8;16
     match msg_format {
         MsgFormat::Json => msg_json::u8_msg(p.0, p.1, p.2, p.3, p.4),
         MsgFormat::Protobuf => msg_proto::u8_msg(p.0, p.1, p.2, p.3, p.4),
+    }
+}
+
+pub fn encode_bytes_vec_msg(val: Vec<Vec<u8>>, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat) -> Result<Vec<u8>, EncodeError> {
+    let time = get_time_in_millis();
+    let p = (val, topic, policy, key, Some(time));
+    match msg_format {
+        MsgFormat::Json => msg_json::bytes_vec_msg(p.0, p.1, p.2, p.3, p.4),
+        MsgFormat::Protobuf => msg_proto::bytes_vec_msg(p.0, p.1, p.2, p.3, p.4),
     }
 }
 
@@ -188,9 +219,17 @@ pub fn decrypt(mac: &Vec<u8>, time: i64, msg_type: &String, msg: &Vec<u8>, key: 
     (cipher.decrypt(&msg, output.as_mut_slice(), &mac), output)
 }
 
-// pub fn decode_bool_msg() -> Result<> {
-//
-// }
+pub fn decode_bytes_vec_msg(msg: Vec<u8>, msg_format: MsgFormat) -> Result<Vec<Vec<u8>>, DecodeError> {
+    let bytes_vec_decoded: Result<BytesVecMsg, DecodeError> = match msg_format {
+        MsgFormat::Json => { msg_json::to_msg(msg) },
+        MsgFormat::Protobuf => {
+            msg_proto::to_bytes_vec_msg(msg_proto::to_msg::<msg_proto_defs::BytesVecMsg>(msg)) },
+    };
+    match bytes_vec_decoded {
+        Ok(v) => Ok(v.val),
+        Err(e) => Err(e)
+    }
+}
 
 pub fn get_time_in_millis() -> i64 {
     let now = time::get_time();
@@ -324,7 +363,16 @@ pub fn report_to_vec_u8(report: &Report) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+
+    use super::{encode_bytes_vec_msg, slice_to_vec, MsgPolicy, MsgFormat};
+
     #[test]
     fn it_works() {
+        let val: Vec<Vec<u8>> = slice_to_vec(&[
+            slice_to_vec(&("clamp15".as_bytes())),
+            slice_to_vec(&("unclutch".as_bytes())),
+            ]);
+        println!("DEBUG! {:?}", encode_bytes_vec_msg(val, "SUB", MsgPolicy::Plain, None, MsgFormat::Json));
+        assert!(false);
     }
 }

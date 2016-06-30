@@ -1,5 +1,5 @@
-    use protobuf::{ Message, MessageStatic, parse_from_bytes, ProtobufError };
-    use {BoolMsg, CacheMsg, DecodeError, EncodeError, MsgPolicy, U8Msg};
+    use protobuf::{ Message, MessageStatic, parse_from_bytes, ProtobufError, RepeatedField };
+    use {BoolMsg, BytesVecMsg, CacheMsg, DecodeError, EncodeError, MsgPolicy, U8Msg};
     use {get_time_in_millis, slice_to_vec};
     use dh_attestation::*;
     use msg_proto_defs as pbmsgs;
@@ -55,8 +55,34 @@
         to_proto(topic, &u8_msg, None, msg_policy, key, time)
     }
 
+    pub fn bytes_vec_msg(val: Vec<Vec<u8>>, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>)
+    -> Result<Vec<u8>, EncodeError> {
+        let mut bytes_vec_msg = pbmsgs::BytesVecMsg::new();
+        let repeated = RepeatedField::from_vec(val);
+        bytes_vec_msg.set_val(repeated);
+        to_proto(topic, &bytes_vec_msg, None, msg_policy, key, time)
+    }
+
+    pub fn to_proto_all_given(msg: Vec<u8>, msg_type: &str, mac: Option<Vec<u8>>, time: i64) -> Result<Vec<u8>, EncodeError> {
+        let mut result = pbmsgs::CacheMsg::new();
+        result.set_msg_type(msg_type.to_string());
+        result.set_msg(msg);
+        match mac {
+            Some(m) => { result.set_mac(m); },
+            _ => {},
+        };
+        result.set_time(time);
+        Ok(result.write_to_bytes().unwrap())
+    }
+
 
     pub fn to_proto<M : Message + MessageStatic>(msg_type: &str, msg: &M, client_id: Option<u32>, policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>)
+    -> Result<Vec<u8>, EncodeError> {
+        let msg_bytes = msg.write_to_bytes().unwrap();
+        to_proto_from_bytes_msg(msg_type, msg_bytes, client_id, policy, key, time)
+    }
+
+    pub fn to_proto_from_bytes_msg(msg_type: &str, msg: Vec<u8>, client_id: Option<u32>, policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>)
         -> Result<Vec<u8>, EncodeError> {
         let mut result = pbmsgs::CacheMsg::new();
         result.set_msg_type(msg_type.to_string());
@@ -72,17 +98,17 @@
 
         let mac = match policy {
             MsgPolicy::Plain => {
-                msg_body = msg.write_to_bytes().unwrap();
+                msg_body = msg;
                 None
             },
             MsgPolicy::Authenticated => {
                 if key.is_none() { return Err( EncodeError { description: "No key given for MAC calculation.".to_string() })}
-                msg_body = msg.write_to_bytes().unwrap();
+                msg_body = msg;
                 Some(super::authenticate(msg_type, time, &msg_body, &key.unwrap()))
             },
             MsgPolicy::Encrypted => {
                 if key.is_none() { return Err( EncodeError { description: "No key given for encryption.".to_string() })}
-                let plain_msg_body = msg.write_to_bytes().unwrap();
+                let plain_msg_body = msg;
                 let (output, mac) = super::encrypt(msg_type, time, &plain_msg_body, &key.unwrap());
                 msg_body = output;
                 Some(slice_to_vec(&mac))
@@ -166,4 +192,13 @@
 
     pub fn to_u8_msg(from: pbmsgs::U8Msg) -> U8Msg {
         U8Msg { val: from.get_val() as u8 }
+    }
+
+    pub fn to_bytes_vec_msg(from: Result<pbmsgs::BytesVecMsg, DecodeError>)
+        -> Result<BytesVecMsg, DecodeError> {
+            match from {
+                Ok(m) => Ok(BytesVecMsg { val: slice_to_vec(m.get_val()) }),
+                Err(e) => Err(e),
+            }
+
     }

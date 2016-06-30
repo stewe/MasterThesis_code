@@ -41,3 +41,7 @@ message BoolMsg {
 message U8Msg {
   required uint32 val = 1;
 }
+
+message BytesVecMsg {
+  repeated bytes val = 1;
+}
