@@ -3,16 +3,15 @@ use super::*;
 use msg_lib::*;
 use msg_lib::dh_attestation::*;
 use msg_lib::rust_crypto_dha::*;
-//{CacheMsg, from_json_to_cache_msg, from_protobuf_to_cache_msg, MsgFormat, RustCryptoDHA};
 
 // use super::lazy_static;
 // use super::sgx_isa::Targetinfo;
 use std::collections::HashMap;
 use std::error::Error;
 
-// configure which format to use
-// const MSG_FORMAT: MsgFormat = MsgFormat::Json;
-const MSG_FORMAT: MsgFormat = MsgFormat::Protobuf;
+// configure the serialization format
+const MSG_FORMAT: MsgFormat = MsgFormat::Json;
+// const MSG_FORMAT: MsgFormat = MsgFormat::Protobuf;
 
 
 const CAPACITY: usize = 1000;
@@ -36,10 +35,6 @@ const EXPIRATION: i64 = 100000; // milliseconds
 //     msg_format: MSG_FORMAT,
 // }); MAX_CLIENTS];
 
-// use std::mem;
-// info!("size of (u32, RustCryptoDHA): {}\nsize of clients: {}",
-//     mem::size_of::<(u32, RustCryptoDHA)>(),
-//     mem::size_of::<[(u32, RustCryptoDHA); MAX_CLIENTS]>());
 
 static mut INITIALIZED: bool = false;
 static mut CLIENTS: *mut HashMap<u32, RustCryptoDHA>
@@ -64,16 +59,9 @@ pub fn ecall_handle_sub_msg(msg: Vec<u8>) {
 }
 
 fn handle_sub_msg(cache_msg: CacheMsg) {
-    // let mut key  = [0u8;16];
-    // key = (0..16).into_iter().fold(key, |mut acc, x| { acc[x] = x as u8; acc });
-    // info!("key: {:?}", key);
 
-    // put match into a lib function or write
-    // let msg_type = cache_msg.msg_type.clone();
-    // let topic = msg_type.split_at(4).1;
     match cache_msg.msg_type.as_str() {
-        "unclutch" | "voltage" | "speed-error" | "speed-unsafe" => {
-            info!("SCHUBIDU!");
+        "unclutch" | "invalid-voltage" | "speed-error" | "speed-unsafe" => {
             // dependent on mac, if no mac: cache ensures confidentiality
             // test MAC validation
             // info!("MAC valididation successful: {}", validate(&cache_msg, key));
@@ -113,10 +101,7 @@ fn handle_sub_msg(cache_msg: CacheMsg) {
 
     unsafe {
         (*SUB_CACHE).insert(cache_msg.msg_type.as_str(), time, cache_msg.msg, mac);
-
-        info!("SUB_CACHE: {:?}", (*SUB_CACHE).get_size_per_entry());
     }
-    info!("HEY HO LET's GO!!!");
 
 }
 
@@ -130,9 +115,9 @@ pub fn ecall_handle_request(msg: Vec<u8>) -> Vec<Vec<u8>> {
         Err(err) => {
             vec!(send_err_msg(err.description().to_string()))
         },
-        Ok(m) => {  //info!("Received request: {:?}", &m);
+        Ok(m) => {  debug!("Received request: {:?}", &m);
                     let resp = handle_request(m);
-                    // info!("Response: {:?}", resp);
+                    debug!("Response: {:?}", resp);
                     resp }};
     result
 }
@@ -149,7 +134,6 @@ unsafe fn initialize() {
 
 fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
     info!("Received request: {:?}", &cache_msg);
-    println!("Received request: {:?}", &cache_msg);
     if cache_msg.mac.is_some() {
         // TODO
         // get SMK for cache_msg.enclave_id
@@ -163,13 +147,14 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
             // TODO if DHA, check validity of request
 
             let mut result = vec!();
-            result.push(slice_to_vec("Ok".as_bytes()));
+
             let subs = match decode_bytes_vec_msg(cache_msg.msg, MSG_FORMAT) {
                 Ok(v) => { v },
                 Err(e) => {
                     warn!("Error at decoding subscription request: {:?}", e.description());
                     vec!() },
             };
+            debug!("requested topics: {:?}", subs);
             for topic in subs {
                 match String::from_utf8(topic) {
                     Ok(t) => {
@@ -179,17 +164,19 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                             // build msgs
                             let mut msgs: Vec<Vec<u8>> = values.into_iter().map(|(time, msg, mac)|
                                 encode_all_given(msg, topic_str, Some(mac), time, MSG_FORMAT).unwrap() ).collect();
-
+                                debug!("{} values for topic {}", msgs.len(), t);
                             result.append(&mut msgs);
                         }
                     },
                     Err(e) => { warn!("Error at decoding a topic of a subscription request: {:?}", e.description()); },
                 }
             }
+            let response_size = result.len() as u32;
+            result.insert(0, encode_u32_msg(response_size, "SUBACK", MsgPolicy::Plain, None, MSG_FORMAT).unwrap());
             return result
     }
 
-    // decode match MSG_FORMAT...
+    // DHA attestation
     vec!(match msg_type {
         "REQ" =>  {
             // 1st
