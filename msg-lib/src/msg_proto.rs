@@ -1,5 +1,5 @@
     use protobuf::{ Message, MessageStatic, parse_from_bytes, ProtobufError, RepeatedField };
-    use {BoolMsg, BytesVecMsg, CacheMsg, DecodeError, EncodeError, MsgPolicy, U8Msg};
+    use {BoolMsg, BytesVecMsg, CacheMsg, DecodeError, EncodeError, MsgPolicy, U32Msg, U8Msg};
     use {get_time_in_millis, slice_to_vec};
     use dh_attestation::*;
     use msg_proto_defs as pbmsgs;
@@ -53,6 +53,13 @@
         let mut u8_msg = pbmsgs::U8Msg::new();
         u8_msg.set_val(val as u32);
         to_proto(topic, &u8_msg, None, msg_policy, key, time)
+    }
+
+    pub fn u32_msg(val: u32, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>)
+    -> Result<Vec<u8>, EncodeError> {
+        let mut u32_msg = pbmsgs::U32Msg::new();
+        u32_msg.set_val(val);
+        to_proto(topic, &u32_msg, None, msg_policy, key, time)
     }
 
     pub fn bytes_vec_msg(val: Vec<Vec<u8>>, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>)
@@ -192,6 +199,10 @@
 
     pub fn to_u8_msg(from: pbmsgs::U8Msg) -> U8Msg {
         U8Msg { val: from.get_val() as u8 }
+    }
+
+    pub fn to_u32_msg(from: pbmsgs::U32Msg) -> U32Msg {
+        U32Msg { val: from.get_val() }
     }
 
     pub fn to_bytes_vec_msg(from: Result<pbmsgs::BytesVecMsg, DecodeError>)

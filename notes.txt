@@ -1,0 +1,21 @@
+TODO
+ - request: receive n or max. t seconds old messages
+ - write a rust program for requesting the cache (use cache-client) -> first msg contains number, when they
+    are all received, measure time;
+ - multiple exp. iterations; parallel requests? -> throughput!
+
+
+
+
+
+Experiments
+    throughput
+     - requests per second as a function of a) number of values b) size of cached values/msgs )
+     - values per second
+     - how many subscriptions? -> frequency of publications
+     - single threaded vs. concurrent
+     - zmq high water mark: default: 1000; publisher drops the rest; may influence the result/throughput
+
+    latency
+     -
+     -

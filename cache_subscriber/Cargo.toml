@@ -1,0 +1,6 @@
+[package]
+name = "cache_subscriber"
+version = "0.1.0"
+authors = ["Stefan Wendt <stefanwendt@posteo.de>"]
+
+[dependencies]

@@ -127,6 +127,12 @@ pub struct BytesVecMsg {
     pub val: Vec<Vec<u8>>,
 }
 
+#[derive(Debug, RustcDecodable, RustcEncodable)]
+pub struct U32Msg {
+    pub val: u32,
+}
+
+
 
 // think about message builder: Builder::new().set_type(MsgType::Bool(val)).set_security(Sec::Authenticated(key)).set_format(MsgFormat::Json).build()
 
@@ -145,6 +151,15 @@ pub fn encode_u8_msg(val: u8, topic: &str, policy: MsgPolicy, key: Option<[u8;16
     match msg_format {
         MsgFormat::Json => msg_json::u8_msg(p.0, p.1, p.2, p.3, p.4),
         MsgFormat::Protobuf => msg_proto::u8_msg(p.0, p.1, p.2, p.3, p.4),
+    }
+}
+
+pub fn encode_u32_msg(val: u32, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat) -> Result<Vec<u8>, EncodeError> {
+    let time = get_time_in_millis();
+    let p = (val, topic, policy, key, Some(time));
+    match msg_format {
+        MsgFormat::Json => msg_json::u32_msg(p.0, p.1, p.2, p.3, p.4),
+        MsgFormat::Protobuf => msg_proto::u32_msg(p.0, p.1, p.2, p.3, p.4),
     }
 }
 
@@ -370,6 +385,9 @@ mod tests {
     fn it_works() {
         let val: Vec<Vec<u8>> = slice_to_vec(&[
             slice_to_vec(&("clamp15".as_bytes())),
+            slice_to_vec(&("invalid-voltage".as_bytes())),
+            slice_to_vec(&("speed-error".as_bytes())),
+            slice_to_vec(&("speed-unsafe".as_bytes())),
             slice_to_vec(&("unclutch".as_bytes())),
             ]);
         println!("DEBUG! {:?}", encode_bytes_vec_msg(val, "SUB", MsgPolicy::Plain, None, MsgFormat::Json));

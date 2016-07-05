@@ -1,6 +1,6 @@
 use rustc_serialize::{ Encodable, Decodable};
 use rustc_serialize::json;
-use {BoolMsg, BytesVecMsg, CacheMsg, DecodeError, EncodeError, MsgPolicy, U8Msg};
+use {BoolMsg, BytesVecMsg, CacheMsg, DecodeError, EncodeError, MsgPolicy, U32Msg, U8Msg};
 use {get_time_in_millis, slice_to_vec};
 use dh_attestation::*;
 use std::error::Error;
@@ -83,6 +83,11 @@ pub fn bool_msg(val: bool, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;1
 
 pub fn u8_msg(val: u8, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>) -> Result<Vec<u8>, EncodeError> {
     let msg = U8Msg { val: val };
+    to_json(topic, &msg, None, msg_policy, key, time)
+}
+
+pub fn u32_msg(val: u32, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>) -> Result<Vec<u8>, EncodeError> {
+    let msg = U32Msg { val: val };
     to_json(topic, &msg, None, msg_policy, key, time)
 }
 
