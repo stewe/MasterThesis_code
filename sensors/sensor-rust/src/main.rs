@@ -54,7 +54,7 @@ fn main() {
 
     if env::args().len() == 1 {
         panic!("Use the following parameters:
-                type=unclutch | voltage | speed-error | speed-unsafe | clamp15
+                type=unclutch | invalid-voltage | speed-error | speed-unsafe | clamp15
                 port=PORTNR
                 policy=plain | mac | cipher (optional, default: plain)
                 format=json | protobuf (optional, default: Protobuf)
@@ -71,11 +71,11 @@ fn main() {
             "type" => {
                 sensor_type = match val {
                     "unclutch" => SensorType::Unclutch,
-                    "voltage" => SensorType::InvalidVoltage,
+                    "invalid-voltage" => SensorType::InvalidVoltage,
                     "speed-error" => SensorType::SpeedError,
                     "speed-unsafe" => SensorType::SpeedUnsafe,
                     "clamp15" => SensorType::Clamp15,
-                    _ => panic!("Unknown sensor type. Use one of the following:\ntype=unclutch | voltage | speed-error | speed-unsafe | clamp15"),
+                    _ => panic!("Unknown sensor type. Use one of the following:\ntype=unclutch | invalid-voltage | speed-error | speed-unsafe | clamp15"),
                 }
             },
             "policy" => {
@@ -110,7 +110,7 @@ fn main() {
         }
     }
 
-    if sensor_type == SensorType::Undefined { panic!("Specify one of the following sensor types:\n unclutch voltage speed-error speed-unsafe clamp15") }
+    if sensor_type == SensorType::Undefined { panic!("Specify one of the following sensor types:\n unclutch invalid-voltage speed-error speed-unsafe clamp15") }
 
     if logging { simple_logger::init().unwrap(); }
     info!("Sensor {} started.", sensor_type);
