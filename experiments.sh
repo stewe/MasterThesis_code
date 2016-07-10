@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # build and start the sensors
-# format=protobuf
-format=json
+format=protobuf
+# format=json
 logging=y
 
 echo "starting the sensors..."
@@ -20,7 +20,7 @@ cargo run type=clamp15 format=$format policy=mac port=5555 period=24 log=$loggin
 
 echo "starting the cache..."
 cd ../../cache/
-cargo run &
+cargo run > ../logs/cache.log &
 
 
 # wait until the cache is filled: 30 sec (1000x 25ms = 25s)
