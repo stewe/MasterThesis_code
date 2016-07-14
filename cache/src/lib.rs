@@ -3,56 +3,56 @@ extern crate lazy_static;
 #[macro_use]
 extern crate log;
 extern crate simple_logger;
-extern crate time;
+// extern crate time;
 extern crate zmq;
 extern crate zmq_sys;
 extern crate msg_lib;
-extern crate sgx_isa;
+// extern crate sgx_isa;
 
 pub mod cache_enclave;
 
 pub mod cache_ds; // TODO pub necessary???
 
-use cache_ds::*;
+// use cache_ds::*;
 use msg_lib::{get_time_in_millis, validate};
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, Mutex};
-use time::{Duration, now, Timespec};
+// use std::sync::{Arc, Mutex};
+// use time::{Duration, now, Timespec};
 
 
-const DEFAULT_CAPACITY: usize = 10;  // TODO configure
-const DEFAULT_EXPIRATION: i64 = 6000; // TODO configure
+// const DEFAULT_CAPACITY: usize = 10;  // TODO configure
+// const DEFAULT_EXPIRATION: u64 = 6000; // TODO configure
 
 // static mut CACHE_ENCLAVE: CacheEnclave = CacheEnclave{expiration: 0, cache_ds: None};
 
-pub struct CacheEnclave {
-    expiration: i64,
-    // #[allow(dead_code)] // TODO
-    cache_ds: CacheDS<String, Vec<u8>>, // mutex? when using an dedicated thread for garbage collection
-}
-
-impl CacheEnclave {
-    pub fn new(capacity: usize, expiration: i64) -> CacheEnclave {
-        CacheEnclave {
-            expiration: expiration,
-            cache_ds: CacheDS::new(capacity),
-        }
-    }
-
-    pub fn new_default() -> CacheEnclave {
-        CacheEnclave {
-            expiration: DEFAULT_EXPIRATION,
-            cache_ds: CacheDS::new(DEFAULT_CAPACITY),
-        }
-    }
-
-    // fn set_expiration(&mut self, expiration: i64) {
-        // self.expiration = expiration;
-    // }
-
-    pub fn get_expiration(&self) -> i64 {
-        self.expiration
-    }
+// pub struct CacheEnclave {
+//     expiration: i64,
+//     // #[allow(dead_code)] // TODO
+//     cache_ds: CacheDS<String, Vec<u8>>, // mutex? when using an dedicated thread for garbage collection
+// }
+//
+// impl CacheEnclave {
+//     pub fn new(capacity: usize, expiration: i64) -> CacheEnclave {
+//         CacheEnclave {
+//             expiration: expiration,
+//             cache_ds: CacheDS::new(capacity),
+//         }
+//     }
+//
+//     pub fn new_default() -> CacheEnclave {
+//         CacheEnclave {
+//             expiration: DEFAULT_EXPIRATION as i64,
+//             cache_ds: CacheDS::new(DEFAULT_CAPACITY),
+//         }
+//     }
+//
+//     // fn set_expiration(&mut self, expiration: i64) {
+//         // self.expiration = expiration;
+//     // }
+//
+//     pub fn get_expiration(&self) -> i64 {
+//         self.expiration
+//     }
 
     // pub fn handle_request(&mut self, msg: &Vec<u8>) -> String {
     //     // TODO debug only
@@ -116,27 +116,27 @@ impl CacheEnclave {
     // }
 
 
-}
+// }
 
 
-fn print_tuple(id: String, t: (String, Timespec)) {
-    let (msg, time) = t;
-    print!("id: {}; msg: {}, time: {}.{}", id, msg, time.sec, time.nsec);
-}
+// fn print_tuple(id: String, t: (String, Timespec)) {
+//     let (msg, time) = t;
+//     info!("id: {}; msg: {}, time: {}.{}", id, msg, time.sec, time.nsec);
+// }
 
-pub fn print_arc_queues(queues: &HashMap<String, Arc<Mutex<VecDeque<(String, Timespec)>>>>) {
-    for (id, q) in queues.iter() {
-        let q = q.lock().unwrap();
-        let size = q.len();
-        println!("{} contains: ", id);
-        for i in 0..size {
-            let a = q.get(i).unwrap();
-            print_tuple(id.clone(), a.clone());
-            println!("");
-        }
-        println!("");
-    }
-}
+// pub fn print_arc_queues(queues: &HashMap<String, Arc<Mutex<VecDeque<(String, Timespec)>>>>) {
+//     for (id, q) in queues.iter() {
+//         let q = q.lock().unwrap();
+//         let size = q.len();
+//         info!("{} contains: ", id);
+//         for i in 0..size {
+//             let a = q.get(i).unwrap();
+//             print_tuple(id.clone(), a.clone());
+//             info!("");
+//         }
+//         info!("");
+//     }
+// }
 
 
 
@@ -144,16 +144,16 @@ pub fn print_arc_queues(queues: &HashMap<String, Arc<Mutex<VecDeque<(String, Tim
 pub struct SubscriptionCache<V> {
     /// capacity per subscription
     capacity: usize,
-    expiration: i64,
+    expiration: u64,
     // #[allow(dead_code)] // TODO
     // String: msg_type
-    // i64: time; V: msg; Vec<u8>: MAC
-    map: HashMap<String, VecDeque<(i64, V, Vec<u8>)>>,
+    // u64: time; V: msg; Vec<u8>: MAC
+    map: HashMap<String, VecDeque<(u64, V, Vec<u8>)>>,
     key: [u8;16],
 }
 
 impl SubscriptionCache<Vec<u8>> {
-    pub fn new(capacity: usize, expiration: i64, key: [u8;16]) -> SubscriptionCache<Vec<u8>> {
+    pub fn new(capacity: usize, expiration: u64, key: [u8;16]) -> SubscriptionCache<Vec<u8>> {
         SubscriptionCache {
             capacity: capacity,
             expiration: expiration,
@@ -162,7 +162,7 @@ impl SubscriptionCache<Vec<u8>> {
         }
     }
 
-    pub fn insert(&mut self, msg_type: &str, timestamp: i64, msg: Vec<u8>, mac: Vec<u8>) {
+    pub fn insert(&mut self, msg_type: &str, timestamp: u64, msg: Vec<u8>, mac: Vec<u8>) {
         let key = msg_type.to_string();
         if self.map.contains_key(&key) {
             if let Some(l) = self.map.get_mut(&key) {
@@ -176,11 +176,11 @@ impl SubscriptionCache<Vec<u8>> {
         }
 
         // TODO only for debugging
-        info!("cache contains: {:?}", self.get_size_per_entry());
+        debug!("cache contains: {:?}", self.get_size_per_entry());
     }
 
     /// returns collection from newest to oldest
-    pub fn get(&self, msg_type: &str, n: Option<usize>) -> Vec<(i64, Vec<u8>, Vec<u8>)> {
+    pub fn get(&self, msg_type: &str, n: Option<usize>) -> Vec<(u64, Vec<u8>, Vec<u8>)> {
         let list = self.map.get(msg_type);
         if list.is_none() { return vec!() }
 
@@ -207,7 +207,7 @@ impl SubscriptionCache<Vec<u8>> {
         self.map.iter().fold(vec!(), |mut acc, (key, val)| { acc.push((key.clone(), val.len())); acc } )
     }
 
-    fn cleanup(list: &mut VecDeque<(i64, Vec<u8>, Vec<u8>)>, expiration: i64, capacity: usize) {
+    fn cleanup(list: &mut VecDeque<(u64, Vec<u8>, Vec<u8>)>, expiration: u64, capacity: usize) {
         let time = get_time_in_millis();
         loop {
             match list.back(){

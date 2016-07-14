@@ -4,11 +4,10 @@ extern crate log;
 extern crate simple_logger;
 extern crate crypto;
 extern crate protobuf;
-extern crate sgx_isa;
+// extern crate sgx_isa;
 
 extern crate rand;
 extern crate rustc_serialize;
-extern crate time;
 
 mod msg_json;
 mod msg_proto;
@@ -26,6 +25,7 @@ use rustc_serialize::{ Encodable, Decoder, Encoder };
 use std::error::Error;
 use std::fmt;
 use std::iter::repeat;
+use std::time::{SystemTime, UNIX_EPOCH};
 use dh_attestation::*;
 // use sgx_isa::{Targetinfo};
 
@@ -42,7 +42,6 @@ pub enum MsgFormat {
     Json,
     Protobuf
 }
-
 
 #[derive (Debug)]
 pub struct DecodeError {
@@ -79,7 +78,7 @@ pub struct CacheMsg {
     pub msg: Vec<u8>,
     pub client_id: Option<u32>,
     pub mac: Option<Vec<u8>>,
-    pub time: Option<i64>,
+    pub time: Option<u64>,
 }
 
 
@@ -88,7 +87,7 @@ pub struct ErrorMsg {
     pub description: String,
 }
 
-pub fn encode_cache_msg(msg: Vec<u8>, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, time: i64, msg_format: MsgFormat) -> Result<Vec<u8>, EncodeError> {
+pub fn encode_cache_msg(msg: Vec<u8>, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, time: u64, msg_format: MsgFormat) -> Result<Vec<u8>, EncodeError> {
     let p = (topic, msg, None, policy, key, Some(time));
     match msg_format {
         MsgFormat::Json => msg_json::to_json_from_bytes_msg(p.0, p.1, p.2, p.3, p.4, p.5),
@@ -96,7 +95,7 @@ pub fn encode_cache_msg(msg: Vec<u8>, topic: &str, policy: MsgPolicy, key: Optio
     }
 }
 
-pub fn encode_all_given(msg: Vec<u8>, msg_type: &str, mac: Option<Vec<u8>>, time: i64, msg_format: MsgFormat) -> Result<Vec<u8>, EncodeError> {
+pub fn encode_all_given(msg: Vec<u8>, msg_type: &str, mac: Option<Vec<u8>>, time: u64, msg_format: MsgFormat) -> Result<Vec<u8>, EncodeError> {
     let p = (msg, msg_type, mac, time);
     match msg_format {
         MsgFormat::Json => msg_json::to_json_all_given(p.0, p.1, p.2, p.3),
@@ -123,6 +122,11 @@ pub struct U8Msg {
 }
 
 #[derive(Debug, RustcDecodable, RustcEncodable)]
+pub struct BytesMsg {
+    pub val: Vec<u8>,
+}
+
+#[derive(Debug, RustcDecodable, RustcEncodable)]
 pub struct BytesVecMsg {
     pub val: Vec<Vec<u8>>,
 }
@@ -132,11 +136,18 @@ pub struct U32Msg {
     pub val: u32,
 }
 
+#[derive(Debug, RustcDecodable, RustcEncodable)]
+pub struct SubCacheMsg {
+    pub number: Option<u32>,
+    pub filters: Vec<Vec<u8>>,
+}
+
 
 
 // think about message builder: Builder::new().set_type(MsgType::Bool(val)).set_security(Sec::Authenticated(key)).set_format(MsgFormat::Json).build()
 
-pub fn encode_bool_msg(val: bool, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat) -> Result<Vec<u8>, EncodeError> {
+pub fn encode_bool_msg(val: bool, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat)
+-> Result<Vec<u8>, EncodeError> {
     let time = get_time_in_millis();
     let p = (val, topic, policy, key, Some(time));
     match msg_format {
@@ -145,7 +156,8 @@ pub fn encode_bool_msg(val: bool, topic: &str, policy: MsgPolicy, key: Option<[u
     }
 }
 
-pub fn encode_u8_msg(val: u8, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat) -> Result<Vec<u8>, EncodeError> {
+pub fn encode_u8_msg(val: u8, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat)
+-> Result<Vec<u8>, EncodeError> {
     let time = get_time_in_millis();
     let p = (val, topic, policy, key, Some(time));
     match msg_format {
@@ -154,7 +166,8 @@ pub fn encode_u8_msg(val: u8, topic: &str, policy: MsgPolicy, key: Option<[u8;16
     }
 }
 
-pub fn encode_u32_msg(val: u32, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat) -> Result<Vec<u8>, EncodeError> {
+pub fn encode_u32_msg(val: u32, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat)
+-> Result<Vec<u8>, EncodeError> {
     let time = get_time_in_millis();
     let p = (val, topic, policy, key, Some(time));
     match msg_format {
@@ -163,7 +176,18 @@ pub fn encode_u32_msg(val: u32, topic: &str, policy: MsgPolicy, key: Option<[u8;
     }
 }
 
-pub fn encode_bytes_vec_msg(val: Vec<Vec<u8>>, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat) -> Result<Vec<u8>, EncodeError> {
+pub fn encode_bytes_msg(val: Vec<u8>, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat)
+-> Result<Vec<u8>, EncodeError> {
+    let time = get_time_in_millis();
+    let p = (val, topic, policy, key, Some(time));
+    match msg_format {
+        MsgFormat::Json => msg_json::bytes_msg(p.0, p.1, p.2, p.3, p.4),
+        MsgFormat::Protobuf => msg_proto::bytes_msg(p.0, p.1, p.2, p.3, p.4),
+    }
+}
+
+pub fn encode_bytes_vec_msg(val: Vec<Vec<u8>>, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat)
+-> Result<Vec<u8>, EncodeError> {
     let time = get_time_in_millis();
     let p = (val, topic, policy, key, Some(time));
     match msg_format {
@@ -172,7 +196,17 @@ pub fn encode_bytes_vec_msg(val: Vec<Vec<u8>>, topic: &str, policy: MsgPolicy, k
     }
 }
 
-pub fn authenticate(msg_type: &str, time: i64, msg: &Vec<u8>, key: &[u8]) -> Vec<u8> {
+pub fn encode_sub_cache_msg(number: Option<u32>, filters: Vec<Vec<u8>>, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat)
+-> Result<Vec<u8>, EncodeError> {
+    let time = get_time_in_millis();
+    let p = (number, filters, topic, policy, key, Some(time));
+    match msg_format {
+        MsgFormat::Json => msg_json::sub_cache_msg(p.0, p.1, p.2, p.3, p.4, p.5),
+        MsgFormat::Protobuf => msg_proto::sub_cache_msg(p.0, p.1, p.2, p.3, p.4, p.5),
+    }
+}
+
+pub fn authenticate(msg_type: &str, time: u64, msg: &Vec<u8>, key: &[u8]) -> Vec<u8> {
     let nonce = produce_nonce(time, msg_type);    // TODO?
 
     //  aad: includes msg_type, msg and timestamp
@@ -186,7 +220,7 @@ pub fn authenticate(msg_type: &str, time: i64, msg: &Vec<u8>, key: &[u8]) -> Vec
     slice_to_vec(mac)
 }
 
-pub fn encrypt(msg_type: &str, time: i64, msg: &Vec<u8>, key: &[u8]) -> (Vec<u8>, [u8;16]){
+pub fn encrypt(msg_type: &str, time: u64, msg: &Vec<u8>, key: &[u8]) -> (Vec<u8>, [u8;16]){
     let nonce = produce_nonce(time, msg_type);
     //  aad: includes msg_type and timestamp
     let mut aad: Vec<u8> = vec!();
@@ -206,7 +240,7 @@ pub fn validate_cache_msg(cache_msg: &CacheMsg, key: [u8;16]) -> bool {
     validate(&cache_msg.mac.clone().unwrap(), cache_msg.time.unwrap(), &cache_msg.msg_type, &cache_msg.msg, key)
 }
 
-pub fn validate(mac: &Vec<u8>, time: i64, msg_type: &String, msg: &Vec<u8>, key: [u8;16]) -> bool {
+pub fn validate(mac: &Vec<u8>, time: u64, msg_type: &String, msg: &Vec<u8>, key: [u8;16]) -> bool {
     let nonce = produce_nonce(time, msg_type.as_str());
     //  aad: includes msg_type, msg and timestamp
     let mut aad: Vec<u8> = vec!();
@@ -223,7 +257,7 @@ pub fn decrypt_cache_msg(cache_msg: &CacheMsg, key: [u8;16]) -> (bool, Vec<u8>) 
     decrypt(&cache_msg.mac.clone().unwrap(), cache_msg.time.unwrap(), &cache_msg.msg_type, &cache_msg.msg, key)
 }
 
-pub fn decrypt(mac: &Vec<u8>, time: i64, msg_type: &String, msg: &Vec<u8>, key: [u8;16]) -> (bool, Vec<u8>) {
+pub fn decrypt(mac: &Vec<u8>, time: u64, msg_type: &String, msg: &Vec<u8>, key: [u8;16]) -> (bool, Vec<u8>) {
     let nonce = produce_nonce(time, msg_type.as_str());
     //  aad: includes msg_type and timestamp
     let mut aad: Vec<u8> = vec!();
@@ -234,7 +268,8 @@ pub fn decrypt(mac: &Vec<u8>, time: i64, msg_type: &String, msg: &Vec<u8>, key: 
     (cipher.decrypt(&msg, output.as_mut_slice(), &mac), output)
 }
 
-pub fn decode_bytes_vec_msg(msg: Vec<u8>, msg_format: MsgFormat) -> Result<Vec<Vec<u8>>, DecodeError> {
+pub fn decode_bytes_vec_msg(msg: Vec<u8>, msg_format: MsgFormat)
+-> Result<Vec<Vec<u8>>, DecodeError> {
     let bytes_vec_decoded: Result<BytesVecMsg, DecodeError> = match msg_format {
         MsgFormat::Json => { msg_json::to_msg(msg) },
         MsgFormat::Protobuf => {
@@ -246,12 +281,37 @@ pub fn decode_bytes_vec_msg(msg: Vec<u8>, msg_format: MsgFormat) -> Result<Vec<V
     }
 }
 
-pub fn get_time_in_millis() -> i64 {
-    let now = time::get_time();
-    now.sec * 1000 + (now.nsec / 1000) as i64
+pub fn decode_sub_cache_msg(msg: Vec<u8>, msg_format: MsgFormat)
+-> Result<(Option<u32>, Vec<Vec<u8>>), DecodeError> {
+    let sub_cache_msg_decoded: Result<SubCacheMsg, DecodeError> = match msg_format {
+        MsgFormat::Json => { msg_json::to_msg(msg) },
+        MsgFormat::Protobuf => {
+            msg_proto::to_sub_cache_msg(msg_proto::to_msg::<msg_proto_defs::SubCacheMsg>(msg)) },
+    };
+    match sub_cache_msg_decoded {
+        Ok(v) => Ok((v.number, v.filters)),
+        Err(e) => Err(e)
+    }
 }
 
-pub fn produce_nonce(time: i64, msg_type: &str) -> [u8;12] {
+pub fn decode_u32_msg(msg: Vec<u8>, msg_format: MsgFormat) -> Result<u32, DecodeError> {
+    let u32_decoded: Result<U32Msg, DecodeError> = match msg_format {
+        MsgFormat::Json => { msg_json::to_msg(msg) },
+        MsgFormat::Protobuf => {
+            msg_proto::to_u32_msg(msg_proto::to_msg::<msg_proto_defs::U32Msg>(msg)) },
+    };
+    match u32_decoded {
+        Ok(v) => Ok(v.val),
+        Err(e) => Err(e)
+    }
+}
+
+pub fn get_time_in_millis() -> u64 {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    (now.as_secs() * 1000) + (now.subsec_nanos() / 1000000) as u64 // TODO IMPORTANT! nsec / 1000000?!
+}
+
+pub fn produce_nonce(time: u64, msg_type: &str) -> [u8;12] {
     let mut nonce: [u8;12] = [0u8;12];
     let mut num = time;
     for i in 0..8 {

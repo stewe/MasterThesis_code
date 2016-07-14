@@ -1,16 +1,17 @@
     use protobuf::{ Message, MessageStatic, parse_from_bytes, ProtobufError, RepeatedField };
-    use {BoolMsg, BytesVecMsg, CacheMsg, DecodeError, EncodeError, MsgPolicy, U32Msg, U8Msg};
+    use {BoolMsg, BytesMsg, BytesVecMsg, CacheMsg, DecodeError, EncodeError, MsgPolicy,
+        SubCacheMsg, U32Msg, U8Msg};
     use {get_time_in_millis, slice_to_vec};
     use dh_attestation::*;
     use msg_proto_defs as pbmsgs;
     use std::error::Error;
 
-    pub fn dha_session_request_proto(enclave_id: u32, msg_type: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>) -> Vec<u8> {
+    pub fn dha_session_request_proto(enclave_id: u32, msg_type: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>) -> Vec<u8> {
         let session_request = pbmsgs::DhaSessionRequest::new();
         to_proto(msg_type, &session_request, Some(enclave_id), msg_policy, key, time).unwrap()
     }
 
-    pub fn dha_responder_gen_msg1(ga: Vec<u8>, targetinfo: Vec<u8>, msg_type: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>) -> Vec<u8> {
+    pub fn dha_responder_gen_msg1(ga: Vec<u8>, targetinfo: Vec<u8>, msg_type: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>) -> Vec<u8> {
         let mut msg1 = pbmsgs::DhaMsg1::new();
         msg1.set_ga(slice_to_vec(&ga));
         msg1.set_targetinfo(slice_to_vec(&targetinfo));
@@ -18,7 +19,7 @@
     }
 
 
-    pub fn dha_msg2(gb: Vec<u8>, report: Report, report_mac: [u8;16], enclave_id: u32, msg_type: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>) -> Vec<u8> {
+    pub fn dha_msg2(gb: Vec<u8>, report: Report, report_mac: [u8;16], enclave_id: u32, msg_type: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>) -> Vec<u8> {
         let mut msg2 = pbmsgs::DhaMsg2::new();
         msg2.set_gb(slice_to_vec(&gb));
         let mut report_proto = pbmsgs::Report::new();
@@ -30,7 +31,7 @@
         to_proto(msg_type, &msg2, Some(enclave_id), msg_policy, key, time).unwrap()
     }
 
-    pub fn dha_msg3(report: Report, report_mac: [u8;16], msg_type: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>) -> Vec<u8> {
+    pub fn dha_msg3(report: Report, report_mac: [u8;16], msg_type: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>) -> Vec<u8> {
         let mut msg3 = pbmsgs::DhaMsg3::new();
         let mut report_proto = pbmsgs::Report::new();
         report_proto.set_report_data(report.report_data);
@@ -41,28 +42,35 @@
         to_proto(msg_type, &msg3, None, msg_policy, key, time).unwrap()
     }
 
-    pub fn bool_msg(val: bool, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>)
+    pub fn bool_msg(val: bool, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
     -> Result<Vec<u8>, EncodeError> {
         let mut bool_msg = pbmsgs::BoolMsg::new();
         bool_msg.set_val(val);
         to_proto(topic, &bool_msg, None, msg_policy, key, time)
     }
 
-    pub fn u8_msg(val: u8, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>)
+    pub fn u8_msg(val: u8, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
     -> Result<Vec<u8>, EncodeError> {
         let mut u8_msg = pbmsgs::U8Msg::new();
         u8_msg.set_val(val as u32);
         to_proto(topic, &u8_msg, None, msg_policy, key, time)
     }
 
-    pub fn u32_msg(val: u32, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>)
+    pub fn u32_msg(val: u32, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
     -> Result<Vec<u8>, EncodeError> {
         let mut u32_msg = pbmsgs::U32Msg::new();
         u32_msg.set_val(val);
         to_proto(topic, &u32_msg, None, msg_policy, key, time)
     }
 
-    pub fn bytes_vec_msg(val: Vec<Vec<u8>>, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>)
+    pub fn bytes_msg(val: Vec<u8>, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
+    -> Result<Vec<u8>, EncodeError> {
+        let mut bytes_msg = pbmsgs::BytesMsg::new();
+        bytes_msg.set_val(val);
+        to_proto(topic, &bytes_msg, None, msg_policy, key, time)
+    }
+
+    pub fn bytes_vec_msg(val: Vec<Vec<u8>>, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
     -> Result<Vec<u8>, EncodeError> {
         let mut bytes_vec_msg = pbmsgs::BytesVecMsg::new();
         let repeated = RepeatedField::from_vec(val);
@@ -70,33 +78,37 @@
         to_proto(topic, &bytes_vec_msg, None, msg_policy, key, time)
     }
 
-    pub fn to_proto_all_given(msg: Vec<u8>, msg_type: &str, mac: Option<Vec<u8>>, time: i64) -> Result<Vec<u8>, EncodeError> {
+    pub fn sub_cache_msg(number: Option<u32>, filters: Vec<Vec<u8>>, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
+    -> Result<Vec<u8>, EncodeError> {
+        let mut sub_cache_msg = pbmsgs::SubCacheMsg::new();
+        if let Some(n) = number { sub_cache_msg.set_number(n) };
+        let repeated = RepeatedField::from_vec(filters);
+        sub_cache_msg.set_filters(repeated);
+        to_proto(topic, &sub_cache_msg, None, msg_policy, key, time)
+    }
+
+
+    pub fn to_proto_all_given(msg: Vec<u8>, msg_type: &str, mac: Option<Vec<u8>>, time: u64) -> Result<Vec<u8>, EncodeError> {
         let mut result = pbmsgs::CacheMsg::new();
         result.set_msg_type(msg_type.to_string());
         result.set_msg(msg);
-        match mac {
-            Some(m) => { result.set_mac(m); },
-            _ => {},
-        };
+        if let Some(m) = mac { result.set_mac(m); };
         result.set_time(time);
         Ok(result.write_to_bytes().unwrap())
     }
 
 
-    pub fn to_proto<M : Message + MessageStatic>(msg_type: &str, msg: &M, client_id: Option<u32>, policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>)
+    pub fn to_proto<M : Message + MessageStatic>(msg_type: &str, msg: &M, client_id: Option<u32>, policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
     -> Result<Vec<u8>, EncodeError> {
         let msg_bytes = msg.write_to_bytes().unwrap();
         to_proto_from_bytes_msg(msg_type, msg_bytes, client_id, policy, key, time)
     }
 
-    pub fn to_proto_from_bytes_msg(msg_type: &str, msg: Vec<u8>, client_id: Option<u32>, policy: MsgPolicy, key: Option<[u8;16]>, time: Option<i64>)
+    pub fn to_proto_from_bytes_msg(msg_type: &str, msg: Vec<u8>, client_id: Option<u32>, policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
         -> Result<Vec<u8>, EncodeError> {
         let mut result = pbmsgs::CacheMsg::new();
         result.set_msg_type(msg_type.to_string());
-        match client_id{
-            Some(id) => { result.set_client_id(id); }
-            None => {}
-        }
+        if let Some(id) = client_id { result.set_client_id(id); };
         let msg_body;
         let time = match time {
             Some(t) => t,
@@ -201,8 +213,11 @@
         U8Msg { val: from.get_val() as u8 }
     }
 
-    pub fn to_u32_msg(from: pbmsgs::U32Msg) -> U32Msg {
-        U32Msg { val: from.get_val() }
+    pub fn to_u32_msg(from: Result<pbmsgs::U32Msg, DecodeError>) -> Result<U32Msg, DecodeError> {
+        match from {
+            Ok(m) => Ok(U32Msg { val: m.get_val() }),
+            Err(e) => Err(e),
+        }
     }
 
     pub fn to_bytes_vec_msg(from: Result<pbmsgs::BytesVecMsg, DecodeError>)
@@ -211,5 +226,13 @@
                 Ok(m) => Ok(BytesVecMsg { val: slice_to_vec(m.get_val()) }),
                 Err(e) => Err(e),
             }
+    }
 
+    pub fn to_sub_cache_msg(from: Result<pbmsgs::SubCacheMsg, DecodeError>)
+    -> Result<SubCacheMsg, DecodeError> {
+        match from {
+            Ok(m) => { Ok(SubCacheMsg {number: if m.has_number() { Some(m.get_number()) } else { None } ,
+                                        filters: slice_to_vec(&m.get_filters())}) },
+            Err(e) => Err(e),
+        }
     }

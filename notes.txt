@@ -1,7 +1,7 @@
 TODO
- - request: receive n or max. t seconds old messages
- - write a rust program for requesting the cache (use cache-client) -> first msg contains number, when they
-    are all received, measure time;
+ - experiments latency: fixed size = facebook average size
+ - experiments: loop in script, finish latency!
+
  - multiple exp. iterations; parallel requests? -> throughput!
 
 

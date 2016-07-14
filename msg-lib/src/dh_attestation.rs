@@ -1,4 +1,4 @@
-extern crate sgx_isa;
+// extern crate sgx_isa;
 
 // use sgx_isa::{Report, Targetinfo};
 use super::DecodeError;

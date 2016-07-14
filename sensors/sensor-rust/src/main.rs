@@ -5,16 +5,16 @@ extern crate log;
 extern crate simple_logger;
 extern crate rand;
 extern crate rustc_serialize;
-extern crate time;
 extern crate zmq;
 
 use std::env;
 use std::fmt::{Display, Error, Formatter};
 use std::str::FromStr;
 use std::string::ToString;
-use std::time::{Duration};
+use std::time::{Duration, Instant};
 use std::thread::sleep;
-use msg_lib::{encode_bool_msg, encode_u8_msg, MsgFormat, MsgPolicy};
+use msg_lib::{encode_bool_msg, encode_bytes_msg, encode_u8_msg,
+                MsgFormat, MsgPolicy};
 use zmq::{Socket, Context};
 
 #[derive(PartialEq)]
@@ -24,6 +24,7 @@ enum SensorType {
     SpeedError,
     SpeedUnsafe,
     Clamp15,
+    Sized,
     Undefined,
 }
 
@@ -35,6 +36,7 @@ impl Display for SensorType {
                             &SensorType::SpeedError => "speed-error",
                             &SensorType::SpeedUnsafe => "speed-unsafe",
                             &SensorType::Clamp15 => "clamp15",
+                            &SensorType::Sized => "sized",
                             _ => "undefined", })
     }
 }
@@ -47,6 +49,7 @@ fn main() {
     let mut port = String::new();
     let mut period = 100u64;
     let mut logging = false;
+    let mut size = 0u32;
 
     let key  = [0u8;16];
     let mut key = Some((0..16).into_iter().fold(key, |mut acc, x| { acc[x] = x as u8; acc }));
@@ -54,12 +57,13 @@ fn main() {
 
     if env::args().len() == 1 {
         panic!("Use the following parameters:
-                type=unclutch | invalid-voltage | speed-error | speed-unsafe | clamp15
+                type=unclutch | invalid-voltage | speed-error | speed-unsafe | clamp15 | sized
                 port=PORTNR
                 policy=plain | mac | cipher (optional, default: plain)
                 format=json | protobuf (optional, default: Protobuf)
                 period=MILLISECONDS (optional, default: 100)
                 log=y | n (optional, default: n)
+                size=SIZE_IN_BYTES (required for sized)
                 ");
     }
 
@@ -75,7 +79,9 @@ fn main() {
                     "speed-error" => SensorType::SpeedError,
                     "speed-unsafe" => SensorType::SpeedUnsafe,
                     "clamp15" => SensorType::Clamp15,
-                    _ => panic!("Unknown sensor type. Use one of the following:\ntype=unclutch | invalid-voltage | speed-error | speed-unsafe | clamp15"),
+                    "sized" => SensorType::Sized,
+                    _ => panic!("Unknown sensor type. Use one of the following:
+                                type=unclutch | invalid-voltage | speed-error | speed-unsafe | clamp15 | sized"),
                 }
             },
             "policy" => {
@@ -101,16 +107,24 @@ fn main() {
             },
             "log" => {
                 match val {
-                "y" => { logging = true; },
+                "yes" => { logging = true; },
                 "no" => {},
                 _ => panic!("Invalid value for logging. Use y or n."),
                 }
             },
+            "size" => {
+                size = u32::from_str(val).expect("Invalid value for size. Use bytes as u32.");
+            }
             _ => panic!("Invalid argument: {}", arg),
         }
     }
 
-    if sensor_type == SensorType::Undefined { panic!("Specify one of the following sensor types:\n unclutch invalid-voltage speed-error speed-unsafe clamp15") }
+    if sensor_type == SensorType::Undefined {
+        panic!("Specify one of the following sensor types:
+                unclutch invalid-voltage speed-error speed-unsafe clamp15 sized") }
+    if sensor_type == SensorType::Sized && size == 0 {
+        panic!("Specify 'size' in bytes for sensor type Sized!.")
+    }
 
     if logging { simple_logger::init().unwrap(); }
     info!("Sensor {} started.", sensor_type);
@@ -121,12 +135,19 @@ fn main() {
 
 
 let period_duration = Duration::from_millis(period);
-// let start = time::SteadyTime::now();
+// let period_time_crate_duration = time::Duration::milliseconds(period as i64);
+// let mut wait_until = time::SteadyTime::now() + period_time_crate_duration;
+let start = Instant::now();
+let mut wait_until = start + period_duration;
 
 loop {
-// let num = 1000;
+// let num = 100;
 // for _ in 0..num {
     let value = match sensor_type {
+        SensorType::Sized => {
+            let rnd: Vec<u8> = (0..size).fold(vec![], |mut acc, _| { acc.push(rand::random()); acc });
+            encode_bytes_msg(rnd, "sized", policy.clone(), key, format).unwrap()
+        },
         SensorType::Clamp15 => {
             let rnd = rand::random();
             encode_u8_msg(rnd, "clamp15", policy.clone(), key, format).unwrap()
@@ -142,10 +163,16 @@ loop {
     // v.split_off(16);
     // info!("sent: {:?}", String::from_utf8(v).unwrap());
 
-    info!("sent: {:?}", value);
+    info!("sent: ({} bytes) {:?}", value.len(), value);
 
-    sleep(period_duration); // TODO check, maybe transform period into (seconds, milliseconds)
+    let now = Instant::now();
+    if wait_until > now {
+        sleep(wait_until - now); // TODO check, maybe transform period into (seconds, milliseconds)
+    }
+    wait_until = wait_until + period_duration;
 }
+
+
 
 // let duration = time::SteadyTime::now() - start;
 // let duration_nanos = duration.num_nanoseconds().unwrap();

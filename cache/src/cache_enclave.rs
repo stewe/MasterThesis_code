@@ -8,14 +8,12 @@ use msg_lib::rust_crypto_dha::*;
 // use super::sgx_isa::Targetinfo;
 use std::collections::HashMap;
 use std::error::Error;
+use std::time::{Instant};
 
-// configure the serialization format
-const MSG_FORMAT: MsgFormat = MsgFormat::Json;
-// const MSG_FORMAT: MsgFormat = MsgFormat::Protobuf;
-
+pub static mut MSG_FORMAT: MsgFormat = MsgFormat::Protobuf;
 
 const CAPACITY: usize = 1000;
-const EXPIRATION: i64 = 100000; // milliseconds
+const EXPIRATION: u64 = 100000; // milliseconds
 
 // static ENCLAVE_ID: u32 = 123456789u32;
 
@@ -42,13 +40,18 @@ static mut CLIENTS: *mut HashMap<u32, RustCryptoDHA>
 
 static mut SUB_CACHE: *mut SubscriptionCache<Vec<u8>> = 0 as *mut SubscriptionCache<Vec<u8>>;
 
+static mut BENCHMARK_REQUEST_CTR: Option<u32> = None;
+static mut BENCHMARK_START_TIME: Option<Instant> = None;
+
 const KEY: [u8;16] = [0u8, 1u8, 2u8, 3u8, 4u8, 5u8, 6u8, 7u8,
                         8u8, 9u8, 10u8, 11u8, 12u8, 13u8, 14u8, 15u8];
 
 pub fn ecall_handle_sub_msg(msg: Vec<u8>) {
-    unsafe { if !INITIALIZED { initialize(); } }
+    let msg_format;
+    unsafe { if !INITIALIZED { initialize(); }
+            msg_format = MSG_FORMAT; }
 
-    let msg_decoded = decode_cache_msg(msg, MSG_FORMAT);
+    let msg_decoded = decode_cache_msg(msg, msg_format);
     match msg_decoded {
         Err(err) => { warn!("{:?}", err.description()); } ,
         Ok(m) => {  //info!("Received request: {:?}", &m);
@@ -60,25 +63,32 @@ pub fn ecall_handle_sub_msg(msg: Vec<u8>) {
 
 fn handle_sub_msg(cache_msg: CacheMsg) {
 
-    match cache_msg.msg_type.as_str() {
-        "unclutch" | "invalid-voltage" | "speed-error" | "speed-unsafe" => {
-            // dependent on mac, if no mac: cache ensures confidentiality
-            // test MAC validation
-            // info!("MAC valididation successful: {}", validate(&cache_msg, key));
-            let (valid, decrypted) = decrypt_cache_msg(&cache_msg, KEY);
-            info!("MAC encryption valid: {}, result: {:?}", valid, decrypted );
-        },
-        "clamp15" => {
-            // test MAC validation
-            info!("MAC valididation successful: {}", validate_cache_msg(&cache_msg, KEY));
-            // let (valid, decrypted) = decrypt(&cache_msg, key);
-            // info!("MAC encryption valid: {}, result: {:?}", valid, decrypted );
-        },
-        _ => {
-            // should not match, since the filters are defined precisely
-            warn!("FAIL! ...unknown /published sensor message.");
-        },
-    };
+    // match cache_msg.msg_type.as_str() {
+    //     "unclutch" | "invalid-voltage" | "speed-error" | "speed-unsafe" => {
+    //         // dependent on mac, if no mac: cache ensures confidentiality
+    //         // test MAC validation
+    //         debug!("MAC valididation successful: {}", validate_cache_msg(&cache_msg, KEY));
+    //         // let (valid, decrypted) = decrypt_cache_msg(&cache_msg, KEY);
+    //         // debug!("MAC encryption valid: {}, result: {:?}", valid, decrypted );
+    //     },
+    //     "clamp15" => {
+    //         // test MAC validation
+    //         debug!("MAC valididation successful: {}", validate_cache_msg(&cache_msg, KEY));
+    //         // let (valid, decrypted) = decrypt(&cache_msg, key);
+    //         // debug!("MAC encryption valid: {}, result: {:?}", valid, decrypted );
+    //     },
+    //     _ => {
+    //         // should not match, since the filters are defined precisely
+    //         warn!("FAIL! ...unknown /published sensor message.");
+    //     },
+    // };
+
+    // dependent on mac, if no mac: cache ensures confidentiality
+    // test MAC validation
+    debug!("MAC valididation successful: {}", validate_cache_msg(&cache_msg, KEY));
+    // let (valid, decrypted) = decrypt_cache_msg(&cache_msg, KEY);
+    // debug!("MAC encryption valid: {}, result: {:?}", valid, decrypted );
+
 
     let time = match cache_msg.time {
         Some(t) => t,
@@ -107,10 +117,11 @@ fn handle_sub_msg(cache_msg: CacheMsg) {
 
 
 pub fn ecall_handle_request(msg: Vec<u8>) -> Vec<Vec<u8>> {
+    let msg_format;
+    unsafe { if !INITIALIZED { initialize(); }
+            msg_format = MSG_FORMAT; }
 
-    unsafe { if !INITIALIZED { initialize(); } }
-
-    let msg_decoded = decode_cache_msg(msg, MSG_FORMAT);
+    let msg_decoded = decode_cache_msg(msg, msg_format);
     let result = match msg_decoded {
         Err(err) => {
             vec!(send_err_msg(err.description().to_string()))
@@ -133,7 +144,9 @@ unsafe fn initialize() {
 }
 
 fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
-    info!("Received request: {:?}", &cache_msg);
+    let msg_format;
+    unsafe { msg_format = MSG_FORMAT; }
+    debug!("Received request: {:?}", &cache_msg);
     if cache_msg.mac.is_some() {
         // TODO
         // get SMK for cache_msg.enclave_id
@@ -142,17 +155,26 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
 
     let msg_type = cache_msg.msg_type.as_str();
 
-    if msg_type == "SUB" {
-
+    match msg_type {
+        "SUB" => {
             // TODO if DHA, check validity of request
+            unsafe {
+                if BENCHMARK_REQUEST_CTR.is_some() {
+                    match BENCHMARK_REQUEST_CTR.as_mut() {
+                        Some(v) => *v = *v + 1,
+                        None => {},
+                    }
+                }
+            }
 
             let mut result = vec!();
-
-            let subs = match decode_bytes_vec_msg(cache_msg.msg, MSG_FORMAT) {
-                Ok(v) => { v },
+            // TODO IMPORTANT SubCacheMsg
+            let (number, subs) = match decode_sub_cache_msg(cache_msg.msg, msg_format) {
+            // let subs = match decode_bytes_vec_msg(cache_msg.msg, msg_format) {
+                Ok(v) => { (match v.0 { Some(n) => Some(n as usize), None => None }, v.1) },
                 Err(e) => {
                     warn!("Error at decoding subscription request: {:?}", e.description());
-                    vec!() },
+                    return vec![] },
             };
             debug!("requested topics: {:?}", subs);
             for topic in subs {
@@ -160,10 +182,10 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                     Ok(t) => {
                         unsafe {
                             let topic_str = t.as_str();
-                            let values = (*SUB_CACHE).get(topic_str, None);
+                            let values = (*SUB_CACHE).get(topic_str, number);
                             // build msgs
                             let mut msgs: Vec<Vec<u8>> = values.into_iter().map(|(time, msg, mac)|
-                                encode_all_given(msg, topic_str, Some(mac), time, MSG_FORMAT).unwrap() ).collect();
+                                encode_all_given(msg, topic_str, Some(mac), time, msg_format).unwrap() ).collect();
                                 debug!("{} values for topic {}", msgs.len(), t);
                             result.append(&mut msgs);
                         }
@@ -172,22 +194,55 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                 }
             }
             let response_size = result.len() as u32;
-            result.insert(0, encode_u32_msg(response_size, "SUBACK", MsgPolicy::Plain, None, MSG_FORMAT).unwrap());
+            result.insert(0, encode_u32_msg(response_size, "SUBACK", MsgPolicy::Plain, None, msg_format).unwrap());
             return result
-    }
+        },
+        "Start" => {
+            unsafe {
+                BENCHMARK_REQUEST_CTR = Some(0);
+                BENCHMARK_START_TIME = Some(Instant::now())
+            }
+            info!("Started counter for measuring requests/second.");
+            return vec![encode_cache_msg(vec![], "OK", MsgPolicy::Plain, None, get_time_in_millis(), msg_format).unwrap()]
+        },
+        "Stop" => {
+            let stop_time = Instant::now();
+            let req_per_sec;
+            unsafe {
+                if BENCHMARK_REQUEST_CTR.is_none()
+                    || BENCHMARK_REQUEST_CTR.unwrap() == 0
+                    || BENCHMARK_START_TIME.is_none() {
+                    return vec![send_err_msg("Benchmark wasn't started.".to_string())]
+                }
+                let dur = stop_time.duration_since(BENCHMARK_START_TIME.unwrap());
+                let dur_float = (dur.as_secs() as f64) + (dur.subsec_nanos() as f64 / 1000000000f64);
+                req_per_sec = (BENCHMARK_REQUEST_CTR.unwrap() as f64) / dur_float;
+                warn!("BENCHMARK_REQUEST_CTR: {}, duration: {:?} = {}", BENCHMARK_REQUEST_CTR.unwrap(), dur, dur_float);
+
+            }
+            info!("Benchmark result: {} requests per second", req_per_sec as u32);
+            unsafe {
+                BENCHMARK_REQUEST_CTR = None;
+                BENCHMARK_START_TIME = None;
+            }
+            return vec![encode_u32_msg(req_per_sec as u32, "Req/Sec", MsgPolicy::Authenticated, Some(KEY), msg_format).unwrap()]
+
+        },
+        _ => {},
+    };
 
     // DHA attestation
-    vec!(match msg_type {
+    vec![match msg_type {
         "REQ" =>  {
             // 1st
-            let mut dha = RustCryptoDHA::new(MSG_FORMAT, DhaState::Responder(DhaResponderState::Start));
+            let mut dha = RustCryptoDHA::new(msg_format, DhaState::Responder(DhaResponderState::Start));
             dha.dha_init_session(DhaRole::Responder);
             dha.state = DhaState::Responder(DhaResponderState::Msg1Sent);
             let targetinfo;
             unsafe {
                 targetinfo = get_targetinfo();
                 (*CLIENTS).insert(cache_msg.client_id.unwrap(), dha);
-                info!("CLIENTS size: {:?}", (*CLIENTS).len());
+                debug!("CLIENTS size: {:?}", (*CLIENTS).len());
             }
             match dha.dha_responder_gen_msg1(cache_msg.msg, targetinfo) {
                 Ok(msg1) => { msg1 },
@@ -214,14 +269,14 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                                 Err(err) => send_err_msg(err.description().to_string()),
                             };
                             dha.state = DhaState::Responder(DhaResponderState::Active);
-                            info!("DHA = {:?}", dha);
+                            debug!("DHA = {:?}", dha);
                             msg3
                         }}}}
         },
         // "ERR" => {  },   // TODO
         "SUB" => unreachable!(),
         _ => send_err_msg("Unknown message type.".to_string()),
-    })
+    }]
 
 }
 

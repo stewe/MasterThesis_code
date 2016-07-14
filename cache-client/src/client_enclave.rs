@@ -3,12 +3,9 @@ use msg_lib::dh_attestation::*;
 use msg_lib::rust_crypto_dha::*;
 
 use std::error::Error;
+use super::MSG_FORMAT;
 
 static ENCLAVE_ID: u32 = 987654321u32;
-
-// configure which format to use
-const MSG_FORMAT: MsgFormat = MsgFormat::Json;
-// const MSG_FORMAT: MsgFormat = MsgFormat::Protobuf;
 
 static mut DHA: RustCryptoDHA = RustCryptoDHA{
     state: DhaState::Initator(DhaInitiatorState::Start),

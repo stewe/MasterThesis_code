@@ -6,3 +6,8 @@ extern crate log;
 extern crate simple_logger;
 
 pub mod client_enclave;
+
+use msg_lib::MsgFormat;
+
+pub const MSG_FORMAT: MsgFormat = MsgFormat::Protobuf;
+// const MSG_FORMAT: MsgFormat = MsgFormat::Json;

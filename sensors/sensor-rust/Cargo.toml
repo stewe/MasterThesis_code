@@ -5,7 +5,7 @@ authors = ["Stefan Wendt <stefanwendt@posteo.de>"]
 
 [dependencies]
 rand = "^0.3"
-time = "^0.1"
+# time = "^0.1"
 log = "^0.3"
 # env_logger = "*"
 simple_logger = "^0.4"
