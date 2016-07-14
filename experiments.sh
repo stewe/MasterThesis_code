@@ -39,7 +39,8 @@ latency_over_number_of_values () {
   # # cargo build --release
   echo "Starting the latency measurements over number of values for fixed size $size"
   echo "log-timestamp; number of requested values; value size in bytes; seconds; nanoseconds;" > ../logs/latency-$size-bytes-over-valuenumber.csv
-  for i in {1..5}   # TODO!!! 500
+  # for i in {1..5}
+  for i in {1..500}
     do
       cargo run --quiet --release action=latency format=$format valuenr=$i >> ../logs/latency-$size-bytes-over-valuenumber.csv
     done
@@ -56,19 +57,20 @@ latency_over_value_size () {
 
   echo "Starting the latency measurements over size in bytes for fixed value number $valuenr"
   echo "log-timestamp; number of requested values; value size in bytes; seconds; nanoseconds;" > ../logs/latency-$valuenr-values-over-size.csv
-  for i in {1..5}    # TODO go up to 40 (4kb)
-  do
-    size=$i'00'     # * 100 ... -> from 100 to 4000 bytes
-    cd "$path/sensors/sensor-rust/" || exit
-    echo "Sensor with value size of $size bytes" > ../../logs/sensor-sized.log
-    cargo run --quiet --release type=sized format=$format policy=$policy port=5551 period=20 size=$size log=$logging >> ../../logs/sensor-sized.log &
-    sleep 5  # wait until the cache is filled with new values
-    echo "size: $size"
-    cd "$path/cache_subscriber/" || exit
-    cargo run --quiet --release action=latency format=$format valuenr=$valuenr >> ../logs/latency-$valuenr-values-over-size.csv
-    kill $!
-    pkill sensor_rust
-  done
+  # for i in {1..5}
+  for i in {1..40}    # 40 = (4kb)
+    do
+      size=$i'00'     # * 100 ... -> from 100 to 4000 bytes
+      cd "$path/sensors/sensor-rust/" || exit
+      echo "Sensor with value size of $size bytes" > ../../logs/sensor-sized.log
+      cargo run --quiet --release type=sized format=$format policy=$policy port=5551 period=20 size=$size log=$logging >> ../../logs/sensor-sized.log &
+      sleep 5  # wait until the cache is filled with new values
+      echo "size: $size"
+      cd "$path/cache_subscriber/" || exit
+      cargo run --quiet --release action=latency format=$format valuenr=$valuenr >> ../logs/latency-$valuenr-values-over-size.csv
+      kill $!
+      pkill sensor_rust
+    done
 }
 
 # 1st: latency as a function of the number of values (with value size =1000 (facebook memcache median:954))
