@@ -85,7 +85,7 @@ fn handle_sub_msg(cache_msg: CacheMsg) {
 
     // dependent on mac, if no mac: cache ensures confidentiality
     // test MAC validation
-    debug!("MAC valididation successful: {}", validate_cache_msg(&cache_msg, KEY));
+    trace!("MAC valididation successful: {}", validate_cache_msg(&cache_msg, KEY));
     // let (valid, decrypted) = decrypt_cache_msg(&cache_msg, KEY);
     // debug!("MAC encryption valid: {}, result: {:?}", valid, decrypted );
 
@@ -126,9 +126,9 @@ pub fn ecall_handle_request(msg: Vec<u8>) -> Vec<Vec<u8>> {
         Err(err) => {
             vec!(send_err_msg(err.description().to_string()))
         },
-        Ok(m) => {  debug!("Received request: {:?}", &m);
+        Ok(m) => {  trace!("Received request: {:?}", &m);
                     let resp = handle_request(m);
-                    debug!("Response: {:?}", resp);
+                    trace!("Response: {:?}", resp);
                     resp }};
     result
 }
@@ -146,7 +146,6 @@ unsafe fn initialize() {
 fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
     let msg_format;
     unsafe { msg_format = MSG_FORMAT; }
-    debug!("Received request: {:?}", &cache_msg);
     if cache_msg.mac.is_some() {
         // TODO
         // get SMK for cache_msg.enclave_id
@@ -176,7 +175,7 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                     warn!("Error at decoding subscription request: {:?}", e.description());
                     return vec![] },
             };
-            debug!("requested topics: {:?}", subs);
+            trace!("requested topics: {:?}", subs);
             for topic in subs {
                 match String::from_utf8(topic) {
                     Ok(t) => {
@@ -186,7 +185,7 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                             // build msgs
                             let mut msgs: Vec<Vec<u8>> = values.into_iter().map(|(time, msg, mac)|
                                 encode_all_given(msg, topic_str, Some(mac), time, msg_format).unwrap() ).collect();
-                                debug!("{} values for topic {}", msgs.len(), t);
+                                trace!("{} values for topic {}", msgs.len(), t);
                             result.append(&mut msgs);
                         }
                     },
@@ -202,7 +201,7 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                 BENCHMARK_REQUEST_CTR = Some(0);
                 BENCHMARK_START_TIME = Some(Instant::now())
             }
-            info!("Started counter for measuring requests/second.");
+            warn!("Started counter for measuring requests/second.");
             return vec![encode_cache_msg(vec![], "OK", MsgPolicy::Plain, None, get_time_in_millis(), msg_format).unwrap()]
         },
         "Stop" => {
@@ -210,7 +209,7 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
             let req_per_sec;
             unsafe {
                 if BENCHMARK_REQUEST_CTR.is_none()
-                    || BENCHMARK_REQUEST_CTR.unwrap() == 0
+                    // || BENCHMARK_REQUEST_CTR.unwrap() == 0
                     || BENCHMARK_START_TIME.is_none() {
                     return vec![send_err_msg("Benchmark wasn't started.".to_string())]
                 }
@@ -220,7 +219,7 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                 warn!("BENCHMARK_REQUEST_CTR: {}, duration: {:?} = {}", BENCHMARK_REQUEST_CTR.unwrap(), dur, dur_float);
 
             }
-            info!("Benchmark result: {} requests per second", req_per_sec as u32);
+            warn!("Benchmark result: {} requests per second", req_per_sec as u32);
             unsafe {
                 BENCHMARK_REQUEST_CTR = None;
                 BENCHMARK_START_TIME = None;

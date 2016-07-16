@@ -176,7 +176,7 @@ impl SubscriptionCache<Vec<u8>> {
         }
 
         // TODO only for debugging
-        debug!("cache contains: {:?}", self.get_size_per_entry());
+        trace!("cache contains: {:?}", self.get_size_per_entry());
     }
 
     /// returns collection from newest to oldest

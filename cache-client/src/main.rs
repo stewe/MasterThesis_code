@@ -2,7 +2,6 @@
 extern crate log;
 // extern crate env_logger;
 extern crate simple_logger;
-extern crate time;
 extern crate zmq;
 extern crate enclave_cache_client as client;
 

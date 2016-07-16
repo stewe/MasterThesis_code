@@ -48,7 +48,6 @@ fn main() {
     let mut format = MsgFormat::Protobuf;
     let mut port = String::new();
     let mut period = 100u64;
-    let mut logging = false;
     let mut size = 0u32;
 
     let key  = [0u8;16];
@@ -105,12 +104,13 @@ fn main() {
             "period" => {
                 period = u64::from_str(val).expect("Invalid value for period. Use milliseconds as u64.");
             },
-            "log" => {
-                match val {
-                "yes" => { logging = true; },
+            "log" => match val {
+                "yes" => { simple_logger::init_with_level(log::LogLevel::Info).unwrap(); },
+                "debug" => { simple_logger::init_with_level(log::LogLevel::Debug).unwrap(); },
+                "trace" => { simple_logger::init_with_level(log::LogLevel::Trace).unwrap(); },
                 "no" => {},
-                _ => panic!("Invalid value for logging. Use y or n."),
-                }
+                _ => panic!("Invalid logging mode. Use one of the following:
+                            yes | no | debug | trace"),
             },
             "size" => {
                 size = u32::from_str(val).expect("Invalid value for size. Use bytes as u32.");
@@ -126,7 +126,6 @@ fn main() {
         panic!("Specify 'size' in bytes for sensor type Sized!.")
     }
 
-    if logging { simple_logger::init().unwrap(); }
     info!("Sensor {} started.", sensor_type);
 
     let mut ctx = Context::new();

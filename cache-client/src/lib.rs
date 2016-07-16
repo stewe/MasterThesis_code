@@ -1,5 +1,5 @@
 extern crate msg_lib;
-extern crate sgx_isa;
+// extern crate sgx_isa;
 #[macro_use]
 extern crate log;
 // extern crate env_logger;
