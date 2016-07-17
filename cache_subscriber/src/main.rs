@@ -101,7 +101,7 @@ fn main() {
             let mut param = Param(number, &mut req, &mut sub);
             let (dur, value_size) = average_request_time(&mut param, iterations, msg_format);
             info!("; {}; {}; {}; {};",
-                    valuenr, (value_size - value_size%100), dur.as_secs(), dur.subsec_nanos());
+                    valuenr, (value_size - value_size%50), dur.as_secs(), dur.subsec_nanos());
             param.1.close().unwrap();
             param.2.close().unwrap();
         },
@@ -247,7 +247,7 @@ fn cached_subscription(param: &mut Param, msg_format: MsgFormat) -> usize {
         slice_to_vec(&("sized".as_bytes())),
         ]);
     let request = encode_sub_cache_msg(param.0, filters, "SUB", MsgPolicy::Plain, None, msg_format).unwrap();
-    param.2.send(&request, 0).unwrap();
+    param.1.send(&request, 0).unwrap();
 
     let resp = param.1.recv_bytes(0).unwrap();
     let cache_msg = decode_cache_msg(resp, msg_format).unwrap();
