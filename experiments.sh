@@ -21,6 +21,7 @@ mkdir -p logs
 echo "Starting the cache with format=$format and policy=$policy..."
 cd "$path/cache/" || exit
 cargo run --quiet --release log=$logging format=$format > $path/logs/cache.log &
+cache_pid=$!
 
 
 # param: size of value
@@ -40,7 +41,7 @@ latency_over_number_of_values () {
   cd "$path/cache_subscriber/" || exit
   # cargo build --release
   echo "Starting the latency measurements over number of values for fixed size $size"
-  echo "log-timestamp; number of requested values; value size in bytes; seconds; nanoseconds;" > $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber.csv
+  echo "logTimestamp; numberOfRequestedValues; valueSizeInBytes; seconds; nanoseconds;" > $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber.csv
   for i in {1..2} # TODO
   # for i in {1..50}
     do
@@ -63,7 +64,7 @@ latency_over_value_size () {
   valuenr=$1
   mkdir -p $path/logs/lat-over-size
   echo "Starting the latency measurements over size in bytes for fixed value number $valuenr."
-  echo "log-timestamp; number of requested values; value size in bytes; seconds; nanoseconds;" > $path/logs/lat-over-size/latency-$valuenr-values-over-size.csv
+  echo "logTimestamp; numberOfRequestedValues; valueSizeInBytes; seconds; nanoseconds;" > $path/logs/lat-over-size/latency-$valuenr-values-over-size.csv
   echo "Sensors with increasing value sizes:" >  $path/logs/lat-over-size/sensor-sized.log
 
   for i in {1..2} # TODO
@@ -100,8 +101,6 @@ throughput_over_number_of_values () {
   echo "Waiting for the cache filling its buffers..."
   sleep 15  # at the beginning, half filled is sufficient
 
-  cd "$path/cache_subscriber/" || exit
-  # cargo build --release
 
   # TODO find out how much threads are necessary
   threads=20
@@ -109,11 +108,19 @@ throughput_over_number_of_values () {
   # TODO period for requester? period=100
   #  TODO IMPORTANT!!! evaluate!
 
-  echo "log-timestamp; number of requested values; value size in bytes; requests per second" > $path/logs/tp-over-number/throughput-$size-bytes-over-valuenumber.csv
+  echo "logTimestamp; numberOfRequestedValues; valueSizeInBytes; requestsPerSecond" > $path/logs/tp-over-number/throughput-$size-bytes-over-valuenumber.csv
   echo "Requester started for size $size." > $path/logs/tp-over-number/requester.log &
   for i in {1..2}  # TODO evaluate thread number
   # for i in {1..50}
     do
+      cd "$path/cache/" || exit
+      # terminante the cache in order to ensure it doesn't still respond to old requests
+      kill $cache_pid
+      pkill enclave_cache_bin
+      cargo run --quiet --release log=$logging format=$format >> $path/logs/cache.log &
+      cache_pid=$!
+
+      cd "$path/cache_subscriber/" || exit
       cargo run --quiet --release log=$logging action=request format=$format valuenr=$i threads=$threads >> $path/logs/tp-over-number/requester.log &
       requester_pid=$!
       cargo run --quiet --release log=$logging action=throughput format=$format valuenr=$i >> $path/logs/tp-over-number/throughput-$size-bytes-over-valuenumber.csv
@@ -124,6 +131,14 @@ throughput_over_number_of_values () {
   for i in {49..50} # TODO evaluate thread number
   # for i in {6..50}
     do
+      cd "$path/cache/" || exit
+      # terminante the cache in order to ensure it doesn't still respond to old requests
+      kill $cache_pid
+      pkill enclave_cache_bin
+      cargo run --quiet --release log=$logging format=$format >> $path/logs/cache.log &
+      cache_pid=$!
+
+      cd "$path/cache_subscriber/" || exit
       cargo run --quiet --release log=$logging action=request format=$format valuenr=$i'0' threads=$threads >> $path/logs/tp-over-number/requester.log &
       requester_pid=$!
       cargo run --quiet --release log=$logging action=throughput format=$format valuenr=$i'0' >> $path/logs/tp-over-number/throughput-$size-bytes-over-valuenumber.csv
@@ -142,35 +157,46 @@ throughput_over_value_size () {
   mkdir -p $path/logs/tp-over-size
 
   echo "Starting the throughput measurements over size in bytes for fixed value number $valuenr"
-  echo "log-timestamp; number of requested values; value size in bytes; requests per second" > $path/logs/tp-over-size/throughput-$valuenr-values-over-size.csv
+  echo "logTimestamp; numberOfRequestedValues; valueSizeInBytes; requestsPerSecond" > $path/logs/tp-over-size/throughput-$valuenr-values-over-size.csv
   echo "Sensors with increasing value sizes:" >  $path/logs/tp-over-size/sensor-sized.log
 
-  cd "$path/cache_subscriber/" || exit
-  # cargo build --release
-  # TODO find out how much threads are necessary
   threads=20
   echo "Starting $threads requesters for generating cache load."
+  echo "Requester for size $size." > $path/logs/tp-over-size/requester.log &
   # TODO period for requester? period=100
   #  TODO IMPORTANT!!! evaluate!
-  cargo run --quiet --release log=$logging action=request format=$format valuenr=$valuenr threads=$threads >> $path/logs/tp-over-size/requester.log &
-  requester_pid=$!
 
   echo "Starting the throughput measurements over number of values for fixed size $size"
-  echo "Requester started for size $size." > $path/logs/tp-over-size/requester.log &
   for i in {1..2}  # TODO evaluate thread number
   # for i in {1..40}
     do
       size=$i'00'
-      echo "Starting sensor with value size of $size bytes..."
+
+      cd "$path/cache_subscriber/" || exit
+      # TODO find out how much threads are necessary
+      cargo run --quiet --release log=$logging action=request format=$format valuenr=$valuenr threads=$threads >> $path/logs/tp-over-size/requester.log &
+      requester_pid=$!
+
+      cd "$path/cache/" || exit
+      # terminate the cache in order to ensure it doesn't still respond to old requests
+      kill $cache_pid
+      pkill enclave_cache_bin
+      cargo run --quiet --release log=$logging format=$format >> $path/logs/cache.log &
+      cache_pid=$!
+
       cd "$path/sensors/sensor-rust/" || exit
+      echo "Starting sensor with value size of $size bytes..."
       cargo run --quiet --release log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/tp-over-size/sensor-sized.log &
       # wait until the cache is filled: 30 sec (1000x 25ms = 25s)
-      sleep 5  # at the beginning, half filled is sufficient
+      sleep 5  # at the beginning, half filled is sufficient; Cache has an expiration of 4sec
       echo "size: $size"
       cd "$path/cache_subscriber/" || exit
       cargo run --quiet --release log=$logging action=throughput format=$format valuenr=$valuenr >> $path/logs/tp-over-size/throughput-$valuenr-values-over-size.csv
+
       kill $! # kills background job cargo
       pkill sensor_rust # kills sensor_rust, spawned by cargo
+      kill $requester_pid
+      pkill cache_subscriber
     done
 
   kill $requester_pid # kills background job cargo
@@ -181,17 +207,17 @@ throughput_over_value_size () {
 
 # # 1st:  latency as a function of the number of values (with value size =150|1000
 # #       (facebook memcache mean:135; median:954))
-latency_over_number_of_values 150
+# latency_over_number_of_values 150
 # latency_over_number_of_values 1000
 #
 # # 2nd: latency as a function of the value size (with fixed value number)
-latency_over_value_size 10
+# latency_over_value_size 10
 # latency_over_value_size 20
 # latency_over_value_size 100
 
 
 #  3rd: throughput as a function of the number of values
-throughput_over_number_of_values 150
+# throughput_over_number_of_values 150
 # throughput_over_number_of_values 1000
 
 # 4th: TODO throughput as a function of the value size (with fixed value number)
