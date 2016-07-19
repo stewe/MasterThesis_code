@@ -214,7 +214,7 @@ fn cache_throughput(param: &mut Param, msg_format: MsgFormat, sleep_duration: Op
             },
         }
     }
-    sleep(Duration::from_secs(sleep_duration.unwrap_or(10)));    // 10s for throughput measurement
+    sleep(Duration::from_secs(sleep_duration.unwrap_or(5)));    // 5s for throughput measurement
 
     param.1.send(&encode_cache_msg(vec![], "Stop", MsgPolicy::Plain, None, 0, msg_format).unwrap(), 0).unwrap();
     let result_msg = decode_cache_msg(param.1.recv_bytes(0).unwrap(), msg_format).unwrap();
@@ -222,9 +222,9 @@ fn cache_throughput(param: &mut Param, msg_format: MsgFormat, sleep_duration: Op
     (decode_u32_msg(result_msg.msg, msg_format).unwrap(), value_size)
 }
 
-fn average_request_time(param: &mut Param, n: u32, msg_format: MsgFormat) -> (Duration, usize) {
+fn average_request_time(param: &mut Param, iterations: u32, msg_format: MsgFormat) -> (Duration, usize) {
     let (dur, value_size) = measure_cached_subscription(param, msg_format);
-    let dur = (0..n-1).fold(dur, |acc, _| acc + measure_cached_subscription(param, msg_format).0) / n;
+    let dur = (0..iterations-1).fold(dur, |acc, _| acc + measure_cached_subscription(param, msg_format).0) / iterations;
     (dur, value_size)
 }
 

@@ -52,7 +52,6 @@ fn main() {
 
     let key  = [0u8;16];
     let mut key = Some((0..16).into_iter().fold(key, |mut acc, x| { acc[x] = x as u8; acc }));
-    info!("key: {:?}", key);
 
     if env::args().len() == 1 {
         panic!("Use the following parameters:
@@ -127,6 +126,11 @@ fn main() {
     }
 
     info!("Sensor {} started.", sensor_type);
+    if sensor_type == SensorType::Sized {
+        info!("value size: {}", size);
+    }
+    debug!("key: {:?}", key);
+
 
     let mut ctx = Context::new();
     let mut socket: Socket = ctx.socket(zmq::PUB).unwrap();
@@ -162,7 +166,7 @@ loop {
     // v.split_off(16);
     // info!("sent: {:?}", String::from_utf8(v).unwrap());
 
-    info!("sent: ({} bytes) {:?}", value.len(), value);
+    debug!("sent: ({} bytes) {:?}", value.len(), value);
 
     let now = Instant::now();
     if wait_until > now {

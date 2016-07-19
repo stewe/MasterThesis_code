@@ -13,7 +13,7 @@ use std::time::{Instant};
 pub static mut MSG_FORMAT: MsgFormat = MsgFormat::Protobuf;
 
 const CAPACITY: usize = 1000;
-const EXPIRATION: u64 = 100000; // milliseconds
+const EXPIRATION: u64 = 4000; // milliseconds
 
 // static ENCLAVE_ID: u32 = 123456789u32;
 

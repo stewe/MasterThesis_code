@@ -95,7 +95,7 @@ fn main() {
                                 debug!("msg: {:?}", &msg);
                                 let responses = cache_enclave::ecall_handle_request(msg);
                                 match responses.len() {
-                                    0 => {},
+                                    0 => {responder.send(&[], 0).unwrap(); },    // TODO this will break the REP-SND/RECV pattern!
                                     1 => { responder.send(&responses.first().unwrap(), 0).unwrap(); },
                                     _ => {
                                         responder.send(&responses.first().unwrap(), 0).unwrap();
