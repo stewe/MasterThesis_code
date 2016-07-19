@@ -2,6 +2,18 @@
 trap 'kill -- -$$' 2 # SIGINT (ctrl+c)
 path=$(pwd)
 
+cache=$path/cache/target/release/enclave_cache_bin
+sensor=$path/sensors/sensor-rust/target/release/sensor_rust
+subscriber=$path/cache_subscriber/target/release/cache_subscriber
+
+cd "$path/cache" || exit
+cargo build --release
+cd "$path/cache_subscriber" || exit
+cargo build --release
+cd "$path/sensors/sensor-rust" || exit
+cargo build --release
+
+
 # build and start the sensors
 format=protobuf
 # format=json
@@ -19,10 +31,7 @@ mkdir -p logs
 # cargo run type=clamp15 format=$format policy=mac port=5555 period=24 log=$logging > ../../logs/sensor-clamp15.log &
 
 echo "Starting the cache with format=$format and policy=$policy..."
-cd "$path/cache/" || exit
-cargo run --quiet --release log=$logging format=$format > $path/logs/cache.log &
-cache_pid=$!
-
+$cache log=$logging format=$format > $path/logs/cache.log &
 
 # param: size of value
 latency_over_number_of_values () {
@@ -30,32 +39,27 @@ latency_over_number_of_values () {
   mkdir -p $path/logs/lat-over-number
   echo "Starting sensor with value size of $size bytes..."
 
-  cd "$path/sensors/sensor-rust/" || exit
   echo "Sensor with value size of $size bytes" > $path/logs/lat-over-number/sensor-sized.log
-  cargo run --quiet --release log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/lat-over-number/sensor-sized.log &
+  $sensor log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/lat-over-number/sensor-sized.log &
 
   # wait until the cache is filled: 30 sec (1000x 25ms = 25s)
   echo "Waiting for the cache filling its buffers."
   sleep 15  # at the beginning, half filled is sufficient
 
-  cd "$path/cache_subscriber/" || exit
-  # cargo build --release
   echo "Starting the latency measurements over number of values for fixed size $size"
   echo "logTimestamp; numberOfRequestedValues; valueSizeInBytes; seconds; nanoseconds;" > $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber.csv
   for i in {1..2} # TODO
   # for i in {1..50}
     do
-      cargo run --quiet --release log=$logging action=latency format=$format valuenr=$i >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber.csv
+      $subscriber log=$logging action=latency format=$format valuenr=$i >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber.csv
     done
   for i in {49..50} # TODO
   # for i in {6..50}
     do
-      cargo run --quiet --release log=$logging action=latency format=$format valuenr=$i'0' >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber.csv
+      $subscriber log=$logging action=latency format=$format valuenr=$i'0' >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber.csv
     done
 
-  kill $! # kills background job cargo
-  # pkill cargo run --release type=sized
-  pkill sensor_rust # kills sensor_rust, spawned by cargo
+  pkill sensor_rust
   echo "Finished measurements for latency over number of values for fixed size $size."
 }
 
@@ -71,15 +75,12 @@ latency_over_value_size () {
   # for i in {1..40}    # 40 = (4kb)
     do
       size=$i'00'     # * 100 ... -> from 100 to 4000 bytes
-      cd "$path/sensors/sensor-rust/" || exit
       echo "Starting sensor with value size of $size bytes."
       echo "Sensor with value size of $size bytes" >> $path/logs/lat-over-size/sensor-sized.log
-      cargo run --quiet --release log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/lat-over-size/sensor-sized.log &
+      $sensor log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/lat-over-size/sensor-sized.log &
       sleep 5  # wait until the cache is filled with new values
       echo "size: $size"
-      cd "$path/cache_subscriber/" || exit
-      cargo run --quiet --release log=$logging action=latency format=$format valuenr=$valuenr >> $path/logs/lat-over-size/latency-$valuenr-values-over-size.csv
-      kill $!
+      $subscriber log=$logging action=latency format=$format valuenr=$valuenr >> $path/logs/lat-over-size/latency-$valuenr-values-over-size.csv
       pkill sensor_rust
     done
 
@@ -93,10 +94,8 @@ throughput_over_number_of_values () {
   echo "Starting the throughput measurements over number of values for fixed size $size"
 
   echo "Starting sensor with value size of $size bytes..."
-  cd "$path/sensors/sensor-rust/" || exit
   echo "Sensor with value size of $size bytes" > $path/logs/tp-over-number/sensor-sized.log
-  cargo run --quiet --release log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/tp-over-number/sensor-sized.log &
-  sensor_pid=$!
+  $sensor log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/tp-over-number/sensor-sized.log &
   # wait until the cache is filled: 30 sec (1000x 25ms = 25s)
   echo "Waiting for the cache filling its buffers..."
   sleep 15  # at the beginning, half filled is sufficient
@@ -113,40 +112,27 @@ throughput_over_number_of_values () {
   for i in {1..2}  # TODO evaluate thread number
   # for i in {1..50}
     do
-      cd "$path/cache/" || exit
-      # terminante the cache in order to ensure it doesn't still respond to old requests
-      kill $cache_pid
+      # terminate the cache in order to ensure it doesn't still respond to old requests
       pkill enclave_cache_bin
-      cargo run --quiet --release log=$logging format=$format >> $path/logs/cache.log &
-      cache_pid=$!
+      $cache log=$logging format=$format >> $path/logs/cache.log &
 
-      cd "$path/cache_subscriber/" || exit
-      cargo run --quiet --release log=$logging action=request format=$format valuenr=$i threads=$threads >> $path/logs/tp-over-number/requester.log &
-      requester_pid=$!
-      cargo run --quiet --release log=$logging action=throughput format=$format valuenr=$i >> $path/logs/tp-over-number/throughput-$size-bytes-over-valuenumber.csv
-      kill $requester_pid # kills background job cargo
+      $subscriber log=$logging action=request format=$format valuenr=$i threads=$threads >> $path/logs/tp-over-number/requester.log &
+      $subscriber log=$logging action=throughput format=$format valuenr=$i >> $path/logs/tp-over-number/throughput-$size-bytes-over-valuenumber.csv
       pkill cache_subscriber
     done
 
   for i in {49..50} # TODO evaluate thread number
   # for i in {6..50}
     do
-      cd "$path/cache/" || exit
-      # terminante the cache in order to ensure it doesn't still respond to old requests
-      kill $cache_pid
+      # terminate the cache in order to ensure it doesn't still respond to old requests
       pkill enclave_cache_bin
-      cargo run --quiet --release log=$logging format=$format >> $path/logs/cache.log &
-      cache_pid=$!
+      $cache log=$logging format=$format >> $path/logs/cache.log &
 
-      cd "$path/cache_subscriber/" || exit
-      cargo run --quiet --release log=$logging action=request format=$format valuenr=$i'0' threads=$threads >> $path/logs/tp-over-number/requester.log &
-      requester_pid=$!
-      cargo run --quiet --release log=$logging action=throughput format=$format valuenr=$i'0' >> $path/logs/tp-over-number/throughput-$size-bytes-over-valuenumber.csv
-      kill $requester_pid # kills background job cargo
+      $subscriber log=$logging action=request format=$format valuenr=$i'0' threads=$threads >> $path/logs/tp-over-number/requester.log &
+      $subscriber log=$logging action=throughput format=$format valuenr=$i'0' >> $path/logs/tp-over-number/throughput-$size-bytes-over-valuenumber.csv
       pkill cache_subscriber
     done
 
-  kill $sensor_pid # kills background job cargo
   pkill sensor_rust # kills sensor_rust, spawned by cargo
   echo "Finished measurements for throughput over number of values for fixed size $size."
 }
@@ -160,6 +146,7 @@ throughput_over_value_size () {
   echo "logTimestamp; numberOfRequestedValues; valueSizeInBytes; requestsPerSecond" > $path/logs/tp-over-size/throughput-$valuenr-values-over-size.csv
   echo "Sensors with increasing value sizes:" >  $path/logs/tp-over-size/sensor-sized.log
 
+  # TODO find out how much threads are necessary
   threads=20
   echo "Starting $threads requesters for generating cache load."
   echo "Requester for size $size." > $path/logs/tp-over-size/requester.log &
@@ -172,35 +159,22 @@ throughput_over_value_size () {
     do
       size=$i'00'
 
-      cd "$path/cache_subscriber/" || exit
-      # TODO find out how much threads are necessary
-      cargo run --quiet --release log=$logging action=request format=$format valuenr=$valuenr threads=$threads >> $path/logs/tp-over-size/requester.log &
-      requester_pid=$!
 
-      cd "$path/cache/" || exit
       # terminate the cache in order to ensure it doesn't still respond to old requests
-      kill $cache_pid
       pkill enclave_cache_bin
-      cargo run --quiet --release log=$logging format=$format >> $path/logs/cache.log &
-      cache_pid=$!
-
-      cd "$path/sensors/sensor-rust/" || exit
+      $cache log=$logging format=$format >> $path/logs/cache.log &
       echo "Starting sensor with value size of $size bytes..."
-      cargo run --quiet --release log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/tp-over-size/sensor-sized.log &
+      $sensor log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/tp-over-size/sensor-sized.log &
+      $subscriber log=$logging action=request format=$format valuenr=$valuenr threads=$threads >> $path/logs/tp-over-size/requester.log &
       # wait until the cache is filled: 30 sec (1000x 25ms = 25s)
       sleep 5  # at the beginning, half filled is sufficient; Cache has an expiration of 4sec
       echo "size: $size"
-      cd "$path/cache_subscriber/" || exit
-      cargo run --quiet --release log=$logging action=throughput format=$format valuenr=$valuenr >> $path/logs/tp-over-size/throughput-$valuenr-values-over-size.csv
+      $subscriber log=$logging action=throughput format=$format valuenr=$valuenr >> $path/logs/tp-over-size/throughput-$valuenr-values-over-size.csv
 
-      kill $! # kills background job cargo
-      pkill sensor_rust # kills sensor_rust, spawned by cargo
-      kill $requester_pid
+      pkill sensor_rust
       pkill cache_subscriber
     done
 
-  kill $requester_pid # kills background job cargo
-  pkill cache_subscriber
   echo "Finished measurements for throughput over number of values for fixed size $size."
 }
 
