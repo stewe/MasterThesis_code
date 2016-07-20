@@ -96,7 +96,8 @@ fn main() {
 
     match action {
         "latency" => {
-            let iterations = 1000;
+            // let iterations = 1000;
+            let iterations = 10;   // TODO
             let (mut req, mut sub) = get_sockets(&mut ctx);
             let mut param = Param(number, &mut req, &mut sub);
             let (dur, value_size) = average_request_time(&mut param, iterations, msg_format);
@@ -111,7 +112,7 @@ fn main() {
             let mut param = Param(number, &mut req, &mut sub);
             let (requests, value_size) = average_cache_throughput(&mut param, iterations, msg_format, None);
             info!("; {}; {}; {};",
-                    valuenr, (value_size - value_size%50), requests);
+                    valuenr, (value_size), requests);
             param.1.close().unwrap();
             param.2.close().unwrap();
         },
@@ -205,7 +206,15 @@ fn cache_throughput(param: &mut Param, msg_format: MsgFormat, sleep_duration: Op
     for i in 1..10 {
         match param.2.recv_bytes(DONTWAIT) {
             Ok(v) => {
-                value_size = v.len();
+                value_size = match msg_format {
+                    MsgFormat::Json => {
+                        let val_str = String::from_utf8(decode_cache_msg(v, msg_format).unwrap().msg).unwrap();
+                        val_str.chars().filter(|c| c == &',').count() + 1
+                    }
+                    MsgFormat::Protobuf => {
+                        v.len() - v.len()%50
+                    }
+                };
                 break;
             },
             _ => {
@@ -239,11 +248,11 @@ fn cached_subscription(param: &mut Param, msg_format: MsgFormat) -> usize {
     // TODO think about timer (timeout for this function...)
 
     let filters = slice_to_vec(&[
-        slice_to_vec(&("clamp15".as_bytes())),
-        slice_to_vec(&("invalid-voltage".as_bytes())),
-        slice_to_vec(&("speed-error".as_bytes())),
-        slice_to_vec(&("speed-unsafe".as_bytes())),
-        slice_to_vec(&("unclutch".as_bytes())),
+        // slice_to_vec(&("clamp15".as_bytes())),
+        // slice_to_vec(&("invalid-voltage".as_bytes())),
+        // slice_to_vec(&("speed-error".as_bytes())),
+        // slice_to_vec(&("speed-unsafe".as_bytes())),
+        // slice_to_vec(&("unclutch".as_bytes())),
         slice_to_vec(&("sized".as_bytes())),
         ]);
     let request = encode_sub_cache_msg(param.0, filters, "SUB", MsgPolicy::Plain, None, msg_format).unwrap();
@@ -252,12 +261,21 @@ fn cached_subscription(param: &mut Param, msg_format: MsgFormat) -> usize {
     let resp = param.1.recv_bytes(0).unwrap();
     let cache_msg = decode_cache_msg(resp, msg_format).unwrap();
     let total_values = decode_u32_msg(cache_msg.msg, msg_format).unwrap();
-    let mut value_size = 0;
 
-    for _ in 0..total_values {
+    let value = param.2.recv_bytes(0).unwrap();
+    let value_size = match msg_format {
+        MsgFormat::Json => {
+            let val_str = String::from_utf8(decode_cache_msg(value, msg_format).unwrap().msg).unwrap();
+            val_str.chars().filter(|c| c == &',').count() + 1
+        }
+        MsgFormat::Protobuf => {
+            value.len() - value.len()%50
+        }
+    };
+
+    // warn!("value size: {:?}", value_size);
+    for _ in 1..total_values {
         let value = param.2.recv_bytes(0).unwrap();
-        if value_size != 0 { assert_eq!(value_size, value.len()); }
-        value_size = value.len();
         trace!("received value: {:?}", value);
     }
 

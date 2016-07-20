@@ -175,7 +175,7 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                     warn!("Error at decoding subscription request: {:?}", e.description());
                     return vec![] },
             };
-            trace!("requested topics: {:?}", subs);
+            trace!("requested number, topics: {:?}, {:?}", number, subs);
             for topic in subs {
                 match String::from_utf8(topic) {
                     Ok(t) => {

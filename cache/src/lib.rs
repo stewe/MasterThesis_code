@@ -189,7 +189,8 @@ impl SubscriptionCache<Vec<u8>> {
             None => self.capacity,
         };
         let mut result = vec!();
-        for (i, item) in list.unwrap().into_iter().enumerate() {
+        // for (i, item) in list.unwrap().into_iter().enumerate() {
+        for item in list.unwrap().into_iter() {
             let msg = item.1.clone(); // TODO resolve data from pointer (unsafe memory / slab)
             //if value is valid
             if validate(&item.2, item.0, &msg_type.to_string(), &msg, self.key) {
@@ -197,7 +198,8 @@ impl SubscriptionCache<Vec<u8>> {
             } else {
                 // TODO remove data and entry, since data is corrupted
             }
-            if i == n { return result }
+            // if i == n-1 { return result }
+            if result.len() == n { return result }
         }
 
         result
