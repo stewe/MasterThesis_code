@@ -14,14 +14,39 @@ cd "$path/sensors/sensor-rust" || exit
 cargo build --release
 
 
-# build and start the sensors
-# format=protobuf
-format=json
+format=protobuf # default format: protobuf
+all=y
+latnum=n
+latsize=n
+tpnum=n
+tpsize=n
+
+for var in "$@"
+  do
+    case "$var" in
+      "json") format=json
+      ;;
+      "latnum") latnum=y
+                all=n
+      ;;
+      "latsize") latsize=y
+                  all=n
+      ;;
+      "tpnum")  tpnum=y
+                all=n
+      ;;
+      "tpsize") tpsize=y
+                all=n
+      ;;
+    esac
+  done
+
 policy=mac
 logging=yes
 # logging=debug
 
 mkdir -p logs
+# build and start the sensors
 # cargo run type=unclutch format=$format policy=mac port=5551 period=20 log=$logging > ../../logs/sensor-unclutch.log &
 # cargo run type=invalid-voltage format=$format policy=mac port=5552 period=21 log=$logging > ../../logs/sensor-invalid-voltage.log &
 # cargo run type=speed-error format=$format policy=mac port=5553 period=22 log=$logging > ../../logs/sensor-speed-error.log &
@@ -198,24 +223,30 @@ throughput_over_value_size () {
 
 # # 1st:  latency as a function of the number of values (with value size =150|1000
 # #       (facebook memcache mean:135; median:954))
-latency_over_number_of_values 150
-latency_over_number_of_values 1000
+if [ $latnum = "y" ] || [ $all = "y" ]; then
+  latency_over_number_of_values 150
+  latency_over_number_of_values 1000
+fi
 #
 # # 2nd: latency as a function of the value size (with fixed value number)
-latency_over_value_size 10
-latency_over_value_size 20
-latency_over_value_size 100
-
+if [ $latsize = "y" ] || [ $all = "y" ]; then
+  latency_over_value_size 10
+  latency_over_value_size 20
+  latency_over_value_size 100
+fi
 
 #  3rd: throughput as a function of the number of values
-throughput_over_number_of_values 150
-throughput_over_number_of_values 1000
+if [ $tpnum = "y" ] || [ $all = "y" ]; then
+  throughput_over_number_of_values 150
+  throughput_over_number_of_values 1000
+fi
 
 # 4th: TODO throughput as a function of the value size (with fixed value number)
-throughput_over_value_size 10
-throughput_over_value_size 20
-throughput_over_value_size 100
-
+if [ $tpsize = "y" ] || [ $all = "y" ]; then
+  throughput_over_value_size 10
+  throughput_over_value_size 20
+  throughput_over_value_size 100
+fi
 
 # printf "Press Return for terminating the sensors:"
 # read
