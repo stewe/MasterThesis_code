@@ -20,6 +20,7 @@ latnum=n
 latsize=n
 tpnum=n
 tpsize=n
+threadeval=n
 
 for var in "$@"
   do
@@ -38,6 +39,9 @@ for var in "$@"
       "tpsize") tpsize=y
                 all=n
       ;;
+      "threadeval") threadeval=y
+                all=n
+      ;;
     esac
   done
 
@@ -54,7 +58,7 @@ mkdir -p logs
 # cargo run type=clamp15 format=$format policy=mac port=5555 period=24 log=$logging > ../../logs/sensor-clamp15.log &
 
 echo "Starting the cache with format=$format and policy=$policy..."
-$cache log=$logging format=$format > $path/logs/cache.log &
+$cache log=$logging format=$format >> $path/logs/cache.log &
 cache_pid=$!
 
 # param: size of value
@@ -73,16 +77,16 @@ latency_over_number_of_values () {
 
   echo "Starting the latency measurements over number of values for fixed size $size"
   echo "logTimestamp; numberOfRequestedValues; valueSizeInBytes; seconds; nanoseconds;" > $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber.csv
-  for i in {1..2} # TODO
-  # for i in {1..50}
+  # for i in {1..2} # TODO
+  for i in {1..50}
     do
       $subscriber log=$logging action=latency format=$format valuenr=$i >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber.csv
     done
   # for i in {49..50} # TODO
-  # for i in {6..50}
-    # do
-    #   $subscriber log=$logging action=latency format=$format valuenr=$i'0' >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber.csv
-    # done
+  for i in {6..50}
+    do
+      $subscriber log=$logging action=latency format=$format valuenr=$i'0' >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber.csv
+    done
 
   kill $sensor_pid
   wait $sensor_pid 2>/dev/null
@@ -97,8 +101,8 @@ latency_over_value_size () {
   echo "logTimestamp; numberOfRequestedValues; valueSizeInBytes; seconds; nanoseconds;" > $path/logs/lat-over-size/latency-$valuenr-values-over-size.csv
   echo "Sensors with increasing value sizes:" >  $path/logs/lat-over-size/sensor-sized.log
 
-  for i in {1..2} # TODO
-  # for i in {1..40}    # 40 = (4kb)
+  # for i in {1..2} # TODO
+  for i in {1..40}    # 40 = (4kb)
     do
       size=$i'00'     # * 100 ... -> from 100 to 4000 bytes
       echo "Starting sensor with value size of $size bytes."
@@ -138,8 +142,8 @@ throughput_over_number_of_values () {
 
   echo "logTimestamp; numberOfRequestedValues; valueSizeInBytes; requestsPerSecond;" > $path/logs/tp-over-number/throughput-$size-bytes-over-valuenumber.csv
   echo "Requester started for size $size." > $path/logs/tp-over-number/requester.log &
-  for i in {1..2}  # TODO evaluate thread number
-  # for i in {1..50}
+  # for i in {1..2}  # TODO evaluate thread number
+  for i in {1..50}
     do
       # terminate the cache in order to ensure it doesn't still respond to old requests
       kill $cache_pid
@@ -155,8 +159,8 @@ throughput_over_number_of_values () {
 
     done
 
-  for i in {49..50} # TODO evaluate thread number
-  # for i in {6..50}
+  # for i in {49..50} # TODO evaluate thread number
+  for i in {6..50}
     do
       # terminate the cache in order to ensure it doesn't still respond to old requests
       kill $cache_pid
@@ -192,8 +196,8 @@ throughput_over_value_size () {
   # TODO period for requester? period=100
   #  TODO IMPORTANT!!! evaluate!
 
-  for i in {1..2}  # TODO evaluate thread number
-  # for i in {1..40}
+  # for i in {1..2}  # TODO evaluate thread number
+  for i in {1..40}
     do
       size=$i'00'
 
@@ -218,6 +222,53 @@ throughput_over_value_size () {
     done
 
   echo "Finished measurements for throughput over size of values for value number $valuenr."
+}
+
+
+thread_eval () {
+  size=150
+  valuenr=10
+  mkdir -p $path/logs/thread-eval
+  echo "Starting the throughput measurements for thread number evaluation"
+
+  # echo "Starting sensor with value size of $size bytes..."
+  # echo "Sensor with value size of $size bytes" > $path/logs/tp-over-number/sensor-sized.log
+  $sensor log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/thread-eval/sensor-sized.log &
+  sensor_pid=$!
+  # wait until the cache is filled: 30 sec (1000x 25ms = 25s)
+  echo "Waiting for the cache filling its buffers..."
+  sleep 15  # at the beginning, half filled is sufficient
+
+
+  # TODO find out how much threads are necessary
+  # threads=20
+  # TODO period for requester? period=100
+  #  TODO IMPORTANT!!! evaluate!
+
+  echo "logTimestamp; numberOfRequestedValues; valueSizeInBytes; requestsPerSecond; threads;" > $path/logs/thread-eval/throughput-$size-bytes-over-valuenumber.csv
+  echo "Requester started for size $size." > $path/logs/thread-eval/requester.log &
+  for i in {15..30}  # TODO evaluate thread number
+  # for i in {1..2}  # TODO evaluate thread number
+    do
+      # terminate the cache in order to ensure it doesn't still respond to old requests
+      kill $cache_pid
+      wait $cache_pid 2>/dev/null
+      $cache log=$logging format=$format >> $path/logs/thread-eval/cache.log &
+      cache_pid=$!
+
+      echo "Starting $i requesters for generating cache load."
+      echo "$i threads:" >> $path/logs/thread-eval/throughput-$size-bytes-over-valuenumber.csv
+      $subscriber log=$logging action=request format=$format valuenr=$valuenr threads=$i >> $path/logs/thread-eval/requester.log &
+      requester_pid=$!
+      $subscriber log=$logging action=throughput format=$format valuenr=$valuenr >> $path/logs/thread-eval/throughput-$size-bytes-over-valuenumber.csv
+      kill $requester_pid
+      wait $requester_pid 2>/dev/null
+
+    done
+
+    kill $sensor_pid
+    wait $sensor_pid 2>/dev/null
+  echo "Finished measurements for throughput over number of values for fixed size $size."
 }
 
 
@@ -246,6 +297,10 @@ if [ $tpsize = "y" ] || [ $all = "y" ]; then
   throughput_over_value_size 10
   throughput_over_value_size 20
   throughput_over_value_size 100
+fi
+
+if [ $threadeval = "y" ]; then
+  thread_eval
 fi
 
 # printf "Press Return for terminating the sensors:"
