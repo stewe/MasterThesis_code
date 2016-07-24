@@ -96,8 +96,7 @@ fn main() {
 
     match action {
         "latency" => {
-            // let iterations = 1000;
-            let iterations = 10;   // TODO
+            let iterations = 1000;
             let (mut req, mut sub) = get_sockets(&mut ctx);
             let mut param = Param(number, &mut req, &mut sub);
             let (dur, value_size) = average_request_time(&mut param, iterations, msg_format);
