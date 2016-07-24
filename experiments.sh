@@ -21,6 +21,8 @@ latsize=n
 tpnum=n
 tpsize=n
 threadeval=n
+logging=yes
+# logging=debug
 
 for var in "$@"
   do
@@ -42,12 +44,12 @@ for var in "$@"
       "threadeval") threadeval=y
                 all=n
       ;;
+      "debug") logging=debug
+      ;;
     esac
   done
 
 policy=mac
-logging=yes
-# logging=debug
 
 mkdir -p logs
 # build and start the sensors
