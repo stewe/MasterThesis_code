@@ -73,7 +73,7 @@ latency_over_number_of_values () {
   $sensor log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/lat-over-number/sensor-sized.log &
   sensor_pid=$!
 
-  # wait until the cache is filled: 30 sec (1000x 25ms = 25s)
+  # wait until the cache is filled: (values x 20ms)
   echo "Waiting for the cache filling its buffers."
   sleep 15  # at the beginning, half filled is sufficient
 
@@ -121,7 +121,8 @@ latency_over_value_size () {
     echo "Finished the latency measurements over size in bytes for fixed value number $valuenr."
 }
 
-#param: size of value
+# param: size of value
+# about 100 min pure sleeping time
 throughput_over_number_of_values () {
   size=$1
   mkdir -p $path/logs/tp-over-number
@@ -131,9 +132,6 @@ throughput_over_number_of_values () {
   echo "Sensor with value size of $size bytes" > $path/logs/tp-over-number/sensor-sized.log
   $sensor log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/tp-over-number/sensor-sized.log &
   sensor_pid=$!
-  # wait until the cache is filled: 30 sec (1000x 25ms = 25s)
-  echo "Waiting for the cache filling its buffers..."
-  sleep 15  # at the beginning, half filled is sufficient
 
 
   # TODO find out how much threads are necessary
@@ -152,6 +150,10 @@ throughput_over_number_of_values () {
       wait $cache_pid 2>/dev/null
       $cache log=$logging format=$format >> $path/logs/cache.log &
       cache_pid=$!
+        # wait until the cache is filled: (values x 20ms)
+      ((sleeptime=$i / 50 + 1))
+      echo "Filling the caches' buffers for $sleeptime sec, then measuring for $i values."
+      sleep $sleeptime
 
       $subscriber log=$logging action=request format=$format valuenr=$i threads=$threads >> $path/logs/tp-over-number/requester.log &
       requester_pid=$!
@@ -169,6 +171,10 @@ throughput_over_number_of_values () {
       wait $cache_pid 2>/dev/null
       $cache log=$logging format=$format >> $path/logs/cache.log &
       cache_pid=$!
+        # wait until the cache is filled: (values x 20ms)
+      ((sleeptime=$i / 5 + 1))
+      echo "Filling the caches' buffers for $sleeptime seconds, then measuring for $i values."
+      sleep $sleeptime
 
       $subscriber log=$logging action=request format=$format valuenr=$i'0' threads=$threads >> $path/logs/tp-over-number/requester.log &
       requester_pid=$!
@@ -183,16 +189,18 @@ throughput_over_number_of_values () {
 }
 
 # param: number of values
+# about 40 min pure sleeping time
 throughput_over_value_size () {
   valuenr=$1
   mkdir -p $path/logs/tp-over-size
+  # TODO find out how much threads are necessary
+  threads=20
+  ((sleeptime=$valuenr / 50 + 1))
 
   echo "Starting the throughput measurements over size in bytes for fixed value number $valuenr"
   echo "logTimestamp; numberOfRequestedValues; valueSizeInBytes; requestsPerSecond;" > $path/logs/tp-over-size/throughput-$valuenr-values-over-size.csv
   echo "Sensors with increasing value sizes:" >  $path/logs/tp-over-size/sensor-sized.log
 
-  # TODO find out how much threads are necessary
-  threads=20
   echo "Starting $threads requesters for generating cache load."
   echo "Requester for size $size." > $path/logs/tp-over-size/requester.log &
   # TODO period for requester? period=100
@@ -211,6 +219,9 @@ throughput_over_value_size () {
       echo "Starting sensor with value size of $size bytes..."
       $sensor log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/tp-over-size/sensor-sized.log &
       sensor_pid=$!
+      # wait until the cache is filled: (values x 20ms)
+      echo "Filling the caches' buffers for $sleeptime sec, then measuring for $i'00' bytes."
+      sleep $sleeptime  # at the beginning, half filled is sufficient
       $subscriber log=$logging action=request format=$format valuenr=$valuenr threads=$threads >> $path/logs/tp-over-size/requester.log &
       subscriber_pid=$!
       # wait until the cache is filled: 30 sec (1000x 25ms = 25s)
