@@ -46,6 +46,9 @@ for var in "$@"
       ;;
       "debug") logging=debug
       ;;
+      *) echo "invalid argument: $var"
+        exit 22
+      ;;
     esac
   done
 
