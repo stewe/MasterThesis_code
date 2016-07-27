@@ -84,12 +84,12 @@ latency_over_number_of_values () {
   echo "Starting the latency measurements over number of values for fixed size $size"
   echo "logTimestamp; numberOfRequestedValues; valueSizeInBytes; seconds; nanoseconds;" > $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber-$load.csv
   # for i in {1..2} # TODO
-  for i in {1..50}
+  for i in {1..10}
     do
       $subscriber log=$logging action=latency format=$format valuenr=$i >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber-$load.csv
     done
   # for i in {49..50} # TODO
-  for i in {6..50}
+  for i in {2..50}
     do
       $subscriber log=$logging action=latency format=$format valuenr=$i'0' >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber-$load.csv
     done
@@ -147,7 +147,7 @@ throughput_over_number_of_values () {
   echo "logTimestamp; numberOfRequestedValues; valueSizeInBytes; requestsPerSecond;" > $path/logs/tp-over-number/throughput-$size-bytes-over-valuenumber.csv
   echo "Requester started for size $size." > $path/logs/tp-over-number/requester.log &
   # for i in {1..2}  # TODO evaluate thread number
-  for i in {1..50}
+  for i in {1..10}
     do
       # terminate the cache in order to ensure it doesn't still respond to old requests
       kill $cache_pid
@@ -168,7 +168,7 @@ throughput_over_number_of_values () {
     done
 
   # for i in {49..50} # TODO evaluate thread number
-  for i in {6..50}
+  for i in {2..50}
     do
       # terminate the cache in order to ensure it doesn't still respond to old requests
       kill $cache_pid
