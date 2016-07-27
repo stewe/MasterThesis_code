@@ -51,7 +51,7 @@ for var in "$@"
 
 policy=mac
 
-mkdir -p logs
+mkdir -p $path/logs
 # build and start the sensors
 # cargo run type=unclutch format=$format policy=mac port=5551 period=20 log=$logging > ../../logs/sensor-unclutch.log &
 # cargo run type=invalid-voltage format=$format policy=mac port=5552 period=21 log=$logging > ../../logs/sensor-invalid-voltage.log &
@@ -63,9 +63,10 @@ echo "Starting the cache with format=$format and policy=$policy..."
 $cache log=$logging format=$format >> $path/logs/cache.log &
 cache_pid=$!
 
-# param: size of value
+# param: size of value; load: reqs/sec
 latency_over_number_of_values () {
   size=$1
+  load=$2
   mkdir -p $path/logs/lat-over-number
   echo "Starting sensor with value size of $size bytes..."
 
@@ -78,16 +79,16 @@ latency_over_number_of_values () {
   sleep 15  # at the beginning, half filled is sufficient
 
   echo "Starting the latency measurements over number of values for fixed size $size"
-  echo "logTimestamp; numberOfRequestedValues; valueSizeInBytes; seconds; nanoseconds;" > $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber.csv
+  echo "logTimestamp; numberOfRequestedValues; valueSizeInBytes; seconds; nanoseconds;" > $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber-$load.csv
   # for i in {1..2} # TODO
   for i in {1..50}
     do
-      $subscriber log=$logging action=latency format=$format valuenr=$i >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber.csv
+      $subscriber log=$logging action=latency format=$format valuenr=$i >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber-$load.csv
     done
   # for i in {49..50} # TODO
   for i in {6..50}
     do
-      $subscriber log=$logging action=latency format=$format valuenr=$i'0' >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber.csv
+      $subscriber log=$logging action=latency format=$format valuenr=$i'0' >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber-$load.csv
     done
 
   kill $sensor_pid
@@ -95,12 +96,13 @@ latency_over_number_of_values () {
   echo "Finished measurements for latency over number of values for fixed size $size."
 }
 
-# param: number of values
+# param: number of values; load: reqs/sec
 latency_over_value_size () {
   valuenr=$1
+  load=$2
   mkdir -p $path/logs/lat-over-size
   echo "Starting the latency measurements over size in bytes for fixed value number $valuenr."
-  echo "logTimestamp; numberOfRequestedValues; valueSizeInBytes; seconds; nanoseconds;" > $path/logs/lat-over-size/latency-$valuenr-values-over-size.csv
+  echo "logTimestamp; numberOfRequestedValues; valueSizeInBytes; seconds; nanoseconds;" > $path/logs/lat-over-size/latency-$valuenr-values-over-size-$load.csv
   echo "Sensors with increasing value sizes:" >  $path/logs/lat-over-size/sensor-sized.log
 
   # for i in {1..2} # TODO
@@ -112,8 +114,7 @@ latency_over_value_size () {
       $sensor log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/lat-over-size/sensor-sized.log &
       sensor_pid=$!
       sleep 5  # wait until the cache is filled with new values
-      echo "size: $size"
-      $subscriber log=$logging action=latency format=$format valuenr=$valuenr >> $path/logs/lat-over-size/latency-$valuenr-values-over-size.csv
+      $subscriber log=$logging action=latency format=$format valuenr=$valuenr >> $path/logs/lat-over-size/latency-$valuenr-values-over-size-$load.csv
       kill $sensor_pid
       wait $sensor_pid 2>/dev/null
     done
@@ -173,7 +174,7 @@ throughput_over_number_of_values () {
       cache_pid=$!
         # wait until the cache is filled: (values x 20ms)
       ((sleeptime=$i / 5 + 1))
-      echo "Filling the caches' buffers for $sleeptime seconds, then measuring for $i values."
+      echo "Filling the caches' buffers for $sleeptime seconds, then measuring for $i'0' values."
       sleep $sleeptime
 
       $subscriber log=$logging action=request format=$format valuenr=$i'0' threads=$threads >> $path/logs/tp-over-number/requester.log &
@@ -284,19 +285,52 @@ thread_eval () {
   echo "Finished measurements for throughput over number of values for fixed size $size."
 }
 
+# params: size
+latency_over_number_of_values_with_load () {
+  size=$1
+  mkdir -p $path/logs/lat-over-number
 
-# # 1st:  latency as a function of the number of values (with value size =150|1000
-# #       (facebook memcache mean:135; median:954))
+  for i in {1..20}
+    do
+      ((threads=$i * 10))
+      echo "load: $threads"
+      $subscriber log=$logging action=request format=$format valuenr=10 threads=$threads period=10 >> $path/logs/lat-over-number/requester.log &
+      requester_pid=$!
+      latency_over_number_of_values $size $i'000'
+      kill $requester_pid
+      wait $requester_pid 2>/dev/null
+    done
+}
+
+# params: valuenr
+latency_over_value_size_with_load () {
+  valuenr=$1
+  mkdir -p $path/logs/lat-over-size
+
+  for i in {1..20}
+    do
+      ((threads=$i * 10))
+      echo "load: $threads"
+      $subscriber log=$logging action=request format=$format valuenr=10 threads=$threads period=10 >> $path/logs/lat-over-size/requester.log &
+      requester_pid=$!
+      latency_over_value_size $size $i'000'
+      kill $requester_pid
+      wait $requester_pid 2>/dev/null
+    done
+}
+
+# 1st:  latency as a function of the number of values (with value size =150|1000
+#       (facebook memcache mean:135; median:954))
 if [ $latnum = "y" ] || [ $all = "y" ]; then
-  latency_over_number_of_values 150
-  latency_over_number_of_values 1000
+  latency_over_number_of_values_with_load 150
+  latency_over_number_of_values_with_load 1000
 fi
-#
-# # 2nd: latency as a function of the value size (with fixed value number)
+
+# 2nd: latency as a function of the value size (with fixed value number)
 if [ $latsize = "y" ] || [ $all = "y" ]; then
-  latency_over_value_size 10
-  latency_over_value_size 20
-  latency_over_value_size 100
+  latency_over_value_size_with_load 10
+  # latency_over_value_size_with_load 20
+  latency_over_value_size_with_load 100
 fi
 
 #  3rd: throughput as a function of the number of values
@@ -305,10 +339,10 @@ if [ $tpnum = "y" ] || [ $all = "y" ]; then
   throughput_over_number_of_values 1000
 fi
 
-# 4th: TODO throughput as a function of the value size (with fixed value number)
+# 4th: throughput as a function of the value size (with fixed value number)
 if [ $tpsize = "y" ] || [ $all = "y" ]; then
   throughput_over_value_size 10
-  throughput_over_value_size 20
+  # throughput_over_value_size 20
   throughput_over_value_size 100
 fi
 
