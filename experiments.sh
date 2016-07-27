@@ -293,7 +293,7 @@ latency_over_number_of_values_with_load () {
   size=$1
   mkdir -p $path/logs/lat-over-number
 
-  for i in {1..20}
+  for i in {0..20}
     do
       ((threads=$i * 10))
       echo "load: $threads"
@@ -310,7 +310,7 @@ latency_over_value_size_with_load () {
   valuenr=$1
   mkdir -p $path/logs/lat-over-size
 
-  for i in {1..20}
+  for i in {0..20}
     do
       ((threads=$i * 10))
       echo "load: $threads"
