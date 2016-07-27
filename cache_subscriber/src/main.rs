@@ -237,15 +237,6 @@ fn average_request_time(param: &mut Param, iterations: u32, msg_format: MsgForma
 }
 
 fn measure_cached_subscription(param: &mut Param, msg_format: MsgFormat) -> (Duration, usize) {
-    let start = Instant::now();
-    let value_size = cached_subscription(param, msg_format);
-    (start.elapsed(), value_size)
-}
-
-fn cached_subscription(param: &mut Param, msg_format: MsgFormat) -> usize {
-    // let (topics, req, sub) = (param.0, param.1, param.2);
-    // TODO think about timer (timeout for this function...)
-
     let filters = slice_to_vec(&[
         // slice_to_vec(&("clamp15".as_bytes())),
         // slice_to_vec(&("invalid-voltage".as_bytes())),
@@ -255,6 +246,15 @@ fn cached_subscription(param: &mut Param, msg_format: MsgFormat) -> usize {
         slice_to_vec(&("sized".as_bytes())),
         ]);
     let request = encode_sub_cache_msg(param.0, filters, "SUB", MsgPolicy::Plain, None, msg_format).unwrap();
+
+    let start = Instant::now();
+    let value_size = cached_subscription(param, request, msg_format);
+    (start.elapsed(), value_size)
+}
+
+fn cached_subscription(param: &mut Param, request: Vec<u8>, msg_format: MsgFormat) -> usize {
+    // let (topics, req, sub) = (param.0, param.1, param.2);
+    // TODO think about timer (timeout for this function...)
     param.1.send(&request, 0).unwrap();
 
     let resp = param.1.recv_bytes(0).unwrap();
