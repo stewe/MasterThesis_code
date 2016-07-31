@@ -296,9 +296,9 @@ latency_over_number_of_values_with_load () {
   size=$1
   mkdir -p $path/logs/lat-over-number
 
-  for i in {0..20}
+  for i in {0..10}
     do
-      ((threads=$i * 10))
+      ((threads=$i * 20))
       echo "load: $threads'00'"
       $subscriber log=$logging action=request format=$format valuenr=10 threads=$threads period=10 >> $path/logs/lat-over-number/requester.log &
       requester_pid=$!
@@ -313,9 +313,9 @@ latency_over_value_size_with_load () {
   valuenr=$1
   mkdir -p $path/logs/lat-over-size
 
-  for i in {0..20}
+  for i in {0..10}
     do
-      ((threads=$i * 10))
+      ((threads=$i * 20))
       echo "load: $threads'00'"
       $subscriber log=$logging action=request format=$format valuenr=10 threads=$threads period=10 >> $path/logs/lat-over-size/requester.log &
       requester_pid=$!
