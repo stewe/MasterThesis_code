@@ -89,9 +89,11 @@ latency_over_number_of_values () {
       $subscriber log=$logging action=latency format=$format valuenr=$i >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber-$load.csv
     done
   # for i in {49..50} # TODO
-  for i in {2..50}
+  # for i in {2..50}
+    for i in {1..10}
+    ((valuenr=$i * 50))
     do
-      $subscriber log=$logging action=latency format=$format valuenr=$i'0' >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber-$load.csv
+      $subscriber log=$logging action=latency format=$format valuenr=$valuenr >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber-$load.csv
     done
 
   kill $sensor_pid
@@ -109,9 +111,10 @@ latency_over_value_size () {
   echo "Sensors with increasing value sizes:" >  $path/logs/lat-over-size/sensor-sized.log
 
   # for i in {1..2} # TODO
-  for i in {1..40}    # 40 = (4kb)
+  # for i in {1..40}    # 40 = (4kb)
+  for i in {1..8}    # 40 = (4kb)
     do
-      size=$i'00'     # * 100 ... -> from 100 to 4000 bytes
+      ((size=$i * 500))     # * 100 ... -> from 100 to 4000 bytes
       echo "Starting sensor with value size of $size bytes."
       echo "Sensor with value size of $size bytes" >> $path/logs/lat-over-size/sensor-sized.log
       $sensor log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/lat-over-size/sensor-sized.log &
