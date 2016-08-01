@@ -300,7 +300,7 @@ latency_over_number_of_values_with_load () {
   for i in {0..10}
     do
       ((threads=$i * 20))
-      echo "load: $threads'00'"
+      echo "load: "$threads"00"
       $subscriber log=$logging action=request format=$format valuenr=10 threads=$threads period=10 >> $path/logs/lat-over-number/requester.log &
       requester_pid=$!
       latency_over_number_of_values $size $threads'00'
@@ -317,7 +317,7 @@ latency_over_value_size_with_load () {
   for i in {0..10}
     do
       ((threads=$i * 20))
-      echo "load: $threads'00'"
+      echo "load: "$threads"00"
       $subscriber log=$logging action=request format=$format valuenr=10 threads=$threads period=10 >> $path/logs/lat-over-size/requester.log &
       requester_pid=$!
       latency_over_value_size $valuenr $threads'00'
