@@ -90,9 +90,9 @@ latency_over_number_of_values () {
     done
   # for i in {49..50} # TODO
   # for i in {2..50}
-    for i in {1..10}
-    ((valuenr=$i * 50))
+  for i in {1..10}
     do
+      ((valuenr=$i * 50))
       $subscriber log=$logging action=latency format=$format valuenr=$valuenr >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber-$load.csv
     done
 
@@ -158,9 +158,8 @@ throughput_over_number_of_values () {
       $cache log=$logging format=$format >> $path/logs/cache.log &
       cache_pid=$!
         # wait until the cache is filled: (values x 20ms)
-      ((sleeptime=$i / 50 + 1))
-      echo "Filling the caches' buffers for $sleeptime sec, then measuring for $i values."
-      sleep $sleeptime
+      echo "Filling the caches' buffers for 2 sec, then measuring for $i values."
+      sleep 2
 
       $subscriber log=$logging action=request format=$format valuenr=$i threads=$threads >> $path/logs/tp-over-number/requester.log &
       requester_pid=$!
@@ -171,21 +170,23 @@ throughput_over_number_of_values () {
     done
 
   # for i in {49..50} # TODO evaluate thread number
-  for i in {2..50}
+  # for i in {2..50}
+  for i in {1..10}
     do
+      ((valuenr=$i * 50))
       # terminate the cache in order to ensure it doesn't still respond to old requests
       kill $cache_pid
       wait $cache_pid 2>/dev/null
       $cache log=$logging format=$format >> $path/logs/cache.log &
       cache_pid=$!
         # wait until the cache is filled: (values x 20ms)
-      ((sleeptime=$i / 5 + 1))
-      echo "Filling the caches' buffers for $sleeptime seconds, then measuring for $i'0' values."
+      ((sleeptime=$i + 1))
+      echo "Filling the caches' buffers for $sleeptime seconds, then measuring for $valuenr values."
       sleep $sleeptime
 
-      $subscriber log=$logging action=request format=$format valuenr=$i'0' threads=$threads >> $path/logs/tp-over-number/requester.log &
+      $subscriber log=$logging action=request format=$format valuenr=$valuenr threads=$threads >> $path/logs/tp-over-number/requester.log &
       requester_pid=$!
-      $subscriber log=$logging action=throughput format=$format valuenr=$i'0' >> $path/logs/tp-over-number/throughput-$size-bytes-over-valuenumber.csv
+      $subscriber log=$logging action=throughput format=$format valuenr=$valuenr >> $path/logs/tp-over-number/throughput-$size-bytes-over-valuenumber.csv
       kill $requester_pid
       wait $requester_pid 2>/dev/null
     done
@@ -214,10 +215,10 @@ throughput_over_value_size () {
   #  TODO IMPORTANT!!! evaluate!
 
   # for i in {1..2}  # TODO evaluate thread number
-  for i in {1..40}
+  # for i in {1..40}
+  for i in {1..8}    # 40 = (4kb)
     do
-      size=$i'00'
-
+      ((size=$i * 500))     # * 100 ... -> from 100 to 4000 bytes
       # terminate the cache in order to ensure it doesn't still respond to old requests
       kill $cache_pid
       wait $cache_pid 2>/dev/null # suppressing the output of 'kill'
@@ -227,7 +228,7 @@ throughput_over_value_size () {
       $sensor log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/tp-over-size/sensor-sized.log &
       sensor_pid=$!
       # wait until the cache is filled: (values x 20ms)
-      echo "Filling the caches' buffers for $sleeptime sec, then measuring for $i'00' bytes."
+      echo "Filling the caches' buffers for $sleeptime sec, then measuring for $size bytes."
       sleep $sleeptime  # at the beginning, half filled is sufficient
       $subscriber log=$logging action=request format=$format valuenr=$valuenr threads=$threads >> $path/logs/tp-over-size/requester.log &
       subscriber_pid=$!
@@ -335,7 +336,7 @@ fi
 # 2nd: latency as a function of the value size (with fixed value number)
 if [ $latsize = "y" ] || [ $all = "y" ]; then
   latency_over_value_size_with_load 10
-  # latency_over_value_size_with_load 20
+  latency_over_value_size_with_load 20
   latency_over_value_size_with_load 100
 fi
 
@@ -348,7 +349,7 @@ fi
 # 4th: throughput as a function of the value size (with fixed value number)
 if [ $tpsize = "y" ] || [ $all = "y" ]; then
   throughput_over_value_size 10
-  # throughput_over_value_size 20
+  throughput_over_value_size 20
   throughput_over_value_size 100
 fi
 
