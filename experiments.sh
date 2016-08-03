@@ -115,11 +115,18 @@ latency_over_value_size () {
   for i in {1..8}    # 40 = (4kb)
     do
       ((size=$i * 500))     # * 100 ... -> from 100 to 4000 bytes
+      kill $cache_pid
+      wait $cache_pid 2>/dev/null
       echo "Starting sensor with value size of $size bytes."
       echo "Sensor with value size of $size bytes" >> $path/logs/lat-over-size/sensor-sized.log
       $sensor log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/lat-over-size/sensor-sized.log &
       sensor_pid=$!
-      sleep 5  # wait until the cache is filled with new values
+      # terminate the cache in order to ensure it doesn't still respond to old requests
+      $cache log=$logging format=$format >> $path/logs/cache.log &
+      cache_pid=$!
+        # wait until the cache is filled: (values x 20ms)
+      echo "Filling the caches' buffers for 5 sec, then measuring for $i values."
+      sleep 5
       $subscriber log=$logging action=latency format=$format valuenr=$valuenr >> $path/logs/lat-over-size/latency-$valuenr-values-over-size-$load.csv
       kill $sensor_pid
       wait $sensor_pid 2>/dev/null
@@ -301,6 +308,7 @@ latency_over_number_of_values_with_load () {
     do
       ((threads=$i * 20))
       echo "load: "$threads"00"
+      date
       $subscriber log=$logging action=request format=$format valuenr=10 threads=$threads period=10 >> $path/logs/lat-over-number/requester.log &
       requester_pid=$!
       latency_over_number_of_values $size $threads'00'
@@ -318,6 +326,7 @@ latency_over_value_size_with_load () {
     do
       ((threads=$i * 20))
       echo "load: "$threads"00"
+      date
       $subscriber log=$logging action=request format=$format valuenr=10 threads=$threads period=10 >> $path/logs/lat-over-size/requester.log &
       requester_pid=$!
       latency_over_value_size $valuenr $threads'00'
