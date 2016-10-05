@@ -281,6 +281,19 @@ pub fn decode_bytes_vec_msg(msg: Vec<u8>, msg_format: MsgFormat)
     }
 }
 
+pub fn decode_bytes_msg(msg: Vec<u8>, msg_format: MsgFormat)
+-> Result<Vec<u8> ,DecodeError> {
+    let bytes_decoded: Result<BytesMsg, DecodeError> = match msg_format {
+        MsgFormat::Json => { msg_json::to_msg(msg) },
+        MsgFormat::Protobuf => {
+            msg_proto::to_bytes_msg(msg_proto::to_msg::<msg_proto_defs::BytesMsg>(msg)) },
+    };
+    match bytes_decoded {
+        Ok(v) => Ok(v.val),
+        Err(e) => Err(e)
+    }
+}
+
 pub fn decode_sub_cache_msg(msg: Vec<u8>, msg_format: MsgFormat)
 -> Result<(Option<u32>, Vec<Vec<u8>>), DecodeError> {
     let sub_cache_msg_decoded: Result<SubCacheMsg, DecodeError> = match msg_format {

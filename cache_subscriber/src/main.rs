@@ -10,7 +10,7 @@ use std::env;
 use std::str::FromStr;
 use std::thread;
 
-use msg_lib::{ decode_cache_msg, decode_u32_msg,
+use msg_lib::{ decode_cache_msg, decode_u32_msg, decode_bytes_msg,
                 //encode_bool_msg, encode_u8_msg, encode_bytes_vec_msg,
                 encode_cache_msg, encode_sub_cache_msg,
                 MsgFormat, MsgPolicy, slice_to_vec};
@@ -96,7 +96,7 @@ fn main() {
 
     match action {
         "latency" => {
-            let iterations = 1000;
+            let iterations = 10000;
             let (mut req, mut sub) = get_sockets(&mut ctx);
             let mut param = Param(number, &mut req, &mut sub);
             let (dur, value_size) = average_request_time(&mut param, iterations, msg_format);
@@ -162,7 +162,7 @@ fn start_requester(ctx: &mut Context, threads: usize, period_ms: Option<u64>, va
         handles.push(thread::spawn(move || {
             let filters = vec![slice_to_vec("sized".as_bytes())];
             let request = encode_sub_cache_msg(Some(valuenr), filters, "SUB", MsgPolicy::Plain, None, msg_format).unwrap();
-            info!("request: {:?}", &request);
+            debug!("request: {:?}", &request);
             loop {
                 socket.send(&request, 0).unwrap();
                 debug!("sent request.");
@@ -201,20 +201,22 @@ fn cache_throughput(param: &mut Param, msg_format: MsgFormat, sleep_duration: Op
     let resp = param.1.recv_bytes(0).unwrap();
     debug!("resp: {:?}", resp);
     let mut value_size = 0;
+    let mut msg_example = vec![];
     // try to receive one published message in order to get the message size
     for i in 1..10 {
         match param.2.recv_bytes(DONTWAIT) {
             Ok(v) => {
-                value_size = match msg_format {
-                    MsgFormat::Json => {
-                        let val_str = String::from_utf8(decode_cache_msg(v, msg_format).unwrap().msg).unwrap();
-                        val_str.chars().filter(|c| c == &',').count() + 1
-                    }
-                    MsgFormat::Protobuf => {
-                        v.len() - v.len()%50
-                    }
-                };
-                break;
+                msg_example = v;// break;
+    //                value_size = match msg_format {
+//                    MsgFormat::Json => {
+//                        let val_str = String::from_utf8(decode_cache_msg(v, msg_format).unwrap().msg).unwrap();
+//                        val_str.chars().filter(|c| c == &',').count() + 1
+//                    }
+//                    MsgFormat::Protobuf => {
+//                        v.len() - v.len()%50
+//                    }
+//                };
+//                break;
             },
             _ => {
                 debug!("Need to wait for a published message.");
@@ -223,7 +225,9 @@ fn cache_throughput(param: &mut Param, msg_format: MsgFormat, sleep_duration: Op
         }
     }
     sleep(Duration::from_secs(sleep_duration.unwrap_or(5)));    // 5s for throughput measurement
-
+    let x = decode_cache_msg(msg_example, msg_format).unwrap();
+    value_size = decode_bytes_msg(x.msg, msg_format).unwrap().len();
+    
     param.1.send(&encode_cache_msg(vec![], "Stop", MsgPolicy::Plain, None, 0, msg_format).unwrap(), 0).unwrap();
     let result_msg = decode_cache_msg(param.1.recv_bytes(0).unwrap(), msg_format).unwrap();
     debug!("received: {:?}", result_msg);
@@ -232,7 +236,26 @@ fn cache_throughput(param: &mut Param, msg_format: MsgFormat, sleep_duration: Op
 
 fn average_request_time(param: &mut Param, iterations: u32, msg_format: MsgFormat) -> (Duration, usize) {
     let (dur, value_size) = measure_cached_subscription(param, msg_format);
-    let dur = (0..iterations-1).fold(dur, |acc, _| acc + measure_cached_subscription(param, msg_format).0) / iterations;
+    //let mut dvec = vec![dur];
+    let mut acc = dur.clone();
+    for _ in 0..iterations-1 {
+        let d = measure_cached_subscription(param, msg_format).0;
+        acc = acc + d;
+        //dvec.push(d);
+    }
+    //let mut x = dvec.as_mut_slice();
+    //x.sort();
+    //for y in x {
+        // info!("{}, {}", y.as_secs(), y.subsec_nanos());
+    //}
+    let dur = acc / iterations;
+
+
+    // let dur = (0..iterations-1).fold(dur, |acc, _| {
+    //     let d = measure_cached_subscription(param, msg_format).0;
+    //     info!("{:?}", d);
+    //     acc + d
+    //     }) / iterations;
     (dur, value_size)
 }
 

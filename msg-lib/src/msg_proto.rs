@@ -220,6 +220,13 @@
         }
     }
 
+    pub fn to_bytes_msg(from: Result<pbmsgs::BytesMsg, DecodeError>) -> Result<BytesMsg, DecodeError> {
+        match from {
+            Ok(m) => Ok(BytesMsg { val: slice_to_vec(m.get_val()) }),
+            Err(e) => Err(e),
+        }
+    }
+
     pub fn to_bytes_vec_msg(from: Result<pbmsgs::BytesVecMsg, DecodeError>)
         -> Result<BytesVecMsg, DecodeError> {
             match from {
