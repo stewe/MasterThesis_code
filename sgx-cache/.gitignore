@@ -1,6 +1,5 @@
 *.save
 *~
-trusted/private.pem
 target
 Cargo.lock
 logs/
