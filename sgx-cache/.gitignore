@@ -3,7 +3,6 @@
 trusted/private.pem
 target
 Cargo.lock
-core_rust-protobuf/
 logs/
 nohup.out
 rand/

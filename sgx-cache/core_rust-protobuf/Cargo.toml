@@ -1,0 +1,22 @@
+[package]
+
+name = "core_rust-protobuf"
+version = "1.0.24"
+authors = ["Stepan Koltsov <stepan.koltsov@gmail.com>"]
+license = "MIT/Apache-2.0"
+homepage = "https://github.com/stepancheg/rust-protobuf/"
+repository = "https://github.com/stepancheg/rust-protobuf/"
+description = """
+Rust implementation of Google protocol buffers
+"""
+
+[lib]
+
+name = "core_protobuf"
+path = "src/lib/protobuf.rs"
+
+[dependencies]
+# rlibc = "1.0.0"
+core_io = { version = "0.1", features = ["alloc","collections"] }
+core_collections = { version = "0.3.20160708", features = ["rand"] }
+spin = "0.4.2"   # MIT
