@@ -6,7 +6,6 @@ Cargo.lock
 logs/
 nohup.out
 rand/
-rust-core_collections/
 rustc-serialize/
 sgx-logs.zip
 sgx-utils-files/
