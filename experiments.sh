@@ -48,21 +48,21 @@ for var in "$@"
 
 
 if [ $sgx = "y" ]; then
-    cache=$path/untrusted/run.sh
+    cache=$path/sgx-cache/untrusted/run.sh
 else
-    cache=$path/../MasterThesis_code/cache/target/release/enclave_cache_bin
-    cd "$path/../MasterThesis_code/cache/" || exit
+    cache=$path/cache/target/release/enclave_cache_bin
+    cd "$path/cache/" || exit
     cargo build --release
 fi
 
-cd "$path/../MasterThesis_code/cache_subscriber" || exit
+cd "$path/cache_subscriber" || exit
 cargo build --release
-cd "$path/../MasterThesis_code/sensors/sensor-rust" || exit
+cd "$path/sensors/sensor-rust" || exit
 cargo build --release
 cd "$path" || exit
 
-sensor=$path/../MasterThesis_code/sensors/sensor-rust/target/release/sensor_rust
-subscriber=$path/../MasterThesis_code/cache_subscriber/target/release/cache_subscriber
+sensor=$path/sensors/sensor-rust/target/release/sensor_rust
+subscriber=$path/cache_subscriber/target/release/cache_subscriber
 
 mkdir -p $path/logs
 # build and start the sensors
