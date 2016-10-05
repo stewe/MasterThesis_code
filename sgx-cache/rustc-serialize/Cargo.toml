@@ -1,0 +1,23 @@
+[package]
+
+name = "core_rustc-serialize"
+version = "0.3.19"
+authors = ["The Rust Project Developers", "Jethro Beekman <jethro@jbeekman.nl>"]
+license = "MIT/Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/rust-lang/rustc-serialize"
+homepage = "https://github.com/rust-lang/rustc-serialize"
+documentation = "https://doc.rust-lang.org/rustc-serialize"
+description = """
+Generic serialization/deserialization support corresponding to the
+`derive(RustcEncodable, RustcDecodable)` mode in the compiler. Also includes
+support for hex, base64, and json encoding and decoding.
+
+This version does not depend on std, only on core+collections
+"""
+
+[dependencies]
+core_collections = { version = "0.3", features = ["rand"] }
+
+[dev-dependencies]
+rand = "0.3"

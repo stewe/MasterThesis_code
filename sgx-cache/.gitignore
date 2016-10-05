@@ -6,7 +6,6 @@ Cargo.lock
 logs/
 nohup.out
 rand/
-rustc-serialize/
 sgx-logs.zip
 sgx-utils-files/
 trusted/src/lib.rs.save.1
