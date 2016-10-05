@@ -1,0 +1,15 @@
+*.save
+*~
+trusted/private.pem
+target
+Cargo.lock
+core_rust-crypto/
+core_rust-protobuf/
+logs/
+nohup.out
+rand/
+rust-core_collections/
+rustc-serialize/
+sgx-logs.zip
+sgx-utils-files/
+trusted/src/lib.rs.save.1
