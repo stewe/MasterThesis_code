@@ -38,7 +38,7 @@
             unstable(feature = "rustc_private",
                      reason = "use the crates.io `rustc-serialize` library instead"))]
 
-#![feature(collections,alloc)]
+#![feature(collections,alloc,core_float)]
 #![no_std]
 
 #[cfg(test)] extern crate rand;

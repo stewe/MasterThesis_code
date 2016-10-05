@@ -255,6 +255,8 @@ use core::str::FromStr;
 use collections::string;
 use core::{char, f64, fmt, str};
 
+use core::num::Float;
+
 use Encodable;
 
 /// Represents a json value
