@@ -1,6 +1,5 @@
 #!/bin/bash
 path="$(pwd)/`dirname '$BASH_SOURCE'`"
-echo $path
 cd $path
 if [ ! -e "target/debug/private.pem" ]; then
     mkdir -p target && mkdir -p target/debug
