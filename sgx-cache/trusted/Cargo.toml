@@ -7,17 +7,16 @@ authors = ["stefan"]
 crate-type = ["dylib"]
 
 [replace]
-"rand:0.3.14" = {git = "https://github.com/jethrogb/rand.git", branch = "core", features = ["core_io", "box", "vec"], default-features = false }
+"rand:0.3.14" = {path = "../rand", features = ["core_io", "box", "vec"], default-features = false }
 
 [dependencies]
-# "sgx-isa" = "0.1.0"
 "enclave" = "=0.1.3"
 spin = "0.3.5"
 lazy_static = { version = "0.2.1", features = ["spin_no_std"] }
 core_io = { version = "0.1", features = ["alloc","collections"] }
 interface = { path = "../interface" }
-core_collections = { version = "0.3.20160708", features = ["rand"] }
-core_rustc-serialize = { version = "0.3.20-patchv0.3.19patch1" }
+core_collections = { path = "../rust-core_collections" , features = ["rand"] }
+core_rustc-serialize = { path = "../rustc-serialize" }
 core_rust-protobuf = { path = "../core_rust-protobuf" }
 core_rust-crypto = { path = "../core_rust-crypto" } #version = "0.2.36"
 

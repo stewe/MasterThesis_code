@@ -17,7 +17,7 @@ This version does not depend on std, only on core+collections
 """
 
 [dependencies]
-core_collections = { version = "0.3", features = ["rand"] }
+core_collections = { path = "../rust-core_collections" , features = ["rand"] }
 
 [dev-dependencies]
 rand = "0.3"

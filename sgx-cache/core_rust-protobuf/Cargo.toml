@@ -16,7 +16,6 @@ name = "core_protobuf"
 path = "src/lib/protobuf.rs"
 
 [dependencies]
-# rlibc = "1.0.0"
 core_io = { version = "0.1", features = ["alloc","collections"] }
-core_collections = { version = "0.3.20160708", features = ["rand"] }
+core_collections = { path = "../rust-core_collections" , features = ["rand"] }
 spin = "0.4.2"   # MIT
