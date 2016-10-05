@@ -1,0 +1,28 @@
+[package]
+name = "core_rust-crypto"
+version = "0.2.36"
+authors = ["The Rust-Crypto Project Developers; modifications by Stefan Wendt"]
+license = "MIT/Apache-2.0"
+homepage = "https://github.com/DaGenix/rust-crypto/"
+repository = "https://github.com/DaGenix/rust-crypto/"
+description = "A (mostly) pure-Rust implementation of various common cryptographic algorithms. Two modifications: A) Runs with no_std. B) Everything that is not necessary for AES-GCM is removed."
+keywords = [ "Crypto", "AES" ]
+readme = "README.md"
+build = "build.rs"
+
+[lib]
+name = "core_crypto"
+
+[features]
+with-bench = []
+
+[build-dependencies]
+gcc = "^0.3"
+
+[dependencies]
+rlibc = "1.0.0"
+rand = "^0.3"
+core_io = { version = "0.1", features = ["alloc","collections"] }
+
+[dev-dependencies]
+rustc-serialize = "^0.3"
