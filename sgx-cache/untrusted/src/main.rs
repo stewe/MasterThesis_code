@@ -1,7 +1,6 @@
 extern crate chan_signal;
 extern crate enclave_interface;
 extern crate interface;
-//#[macro_use] extern crate lazy_static;
 #[macro_use] extern crate log;
 extern crate simple_logger;
 extern crate sgxs;
@@ -11,13 +10,12 @@ extern crate zmq;
 use chan_signal::Signal;
 use interface::ECall;
 use sgx_isa::Sigstruct;
-use std::env;
 use std::fs::File;
 use std::io::{Error as IoError,self};
 use std::mem::transmute;
 use std::ops::Deref;
 use std::slice::from_raw_parts;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 use zmq::{Socket, Context, DONTWAIT, poll, POLLIN};
@@ -62,28 +60,30 @@ fn main() {
     use sgxs::loader::{Load,Map,OptionalEinittoken as OptTok};
     use enclave_interface::tcs;
 
-    let (mut file,sig,mut le_file,le_sig)=match parse_args() {
+    let (mut file,sig,mut le_file,le_sig) = match parse_args() {
         Ok(res) => res,
         Err((arg,err)) => {
-            println!("Usage: sgx-first-steps-untrusted <file> <sig> <le_file> <le_sig> log=debug");
-            println!("\nError with argument `{}': {}",arg,err);
+            error!("Usage: sgx-first-steps-untrusted <file> <sig> <le_file> <le_sig> log=debug");
+            error!("\nError with argument `{}': {}",arg,err);
             std::process::exit(1);
         }
     };
 
 
-    let dev=sgxs::isgx::Device::open("/dev/isgx").unwrap();
-//    let dev=sgxs::isgx::Device::open("/dev/sgx").unwrap();
-    let mut mapping=dev.load_with_launch_enclave(&mut file,&sig,OptTok::None(None),&mut le_file,&le_sig).unwrap();
+//    let dev=sgxs::isgx::Device::open("/dev/isgx").unwrap();
+    let dev = sgxs::isgx::Device::open("/dev/sgx").unwrap();
+    let mut mapping = dev.load_with_launch_enclave(&mut file,&sig,OptTok::None(None),&mut le_file,&le_sig).unwrap();
 
-    // TODO only for debug mode
-    let h = enclave_interface::debug::install_segv_signal_handler(&mut mapping.tcss()[0]);
-    
+    if log_enabled!(log::LogLevel::Debug) {
+        let _ = enclave_interface::debug::install_segv_signal_handler(&mut mapping.tcss()[0]);
+        debug!("Enabled debugging features for the enclave.")
+    }
+
     // init user heap for enclave
     let heap_size: usize = 4096*1024*1*128; // TODO size sufficient? max value size * capacity * nr of sensors * overhead
     let heap_base = Arc::new(unsafe{  memalign(4096, heap_size) as u64 });
-    println!("INFO! heap_base: {:?}", heap_base);
-    let init_user_heap_ret = tcs::enter(&mut mapping.tcss()[0],
+    info!("INFO! heap_base: {:?}", heap_base);
+    let _ = tcs::enter(&mut mapping.tcss()[0],
                                         &ocall_void,
                                         ECall::InitUserHeap as u64, *heap_base.deref(), heap_size as u64, 0, 0);
 
@@ -93,12 +93,12 @@ fn main() {
     thread::spawn(move || {
         match signal.recv() {
             Some(signal) => {
-                println!("Received signal: {:?}", signal);
+                info!("Received signal: {:?}", signal);
                 let addr = (*heap_base.deref()) as *mut u8;
                 unsafe{ free(addr) };
-                println!("Freed allocated memory.");
+                info!("Freed allocated memory.");
             },
-            _ => println!("receive returned None"),
+            _ => info!("Receive returned None"),
         };
         std::process::exit(0);
     });

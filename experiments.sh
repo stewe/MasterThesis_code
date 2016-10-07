@@ -6,20 +6,20 @@ LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/
 
 sgx=n # default: no sgx
 format=protobuf # default format: protobuf
-all=y
+all=y # default: process all experiments
 latnum=n
 latsize=n
 tpnum=n
 tpsize=n
 threadeval=n
-logging=yes
-#logging=debug
-policy=mac
+logging=yes # default: basic logging only
+policy=mac # default: use Message Authentication Codes
 
 for var in "$@"
   do
     case "$var" in
      "sgx") sgx=y
+            echo "Running experiments with SGX."
       ;;
       "json") format=json
       ;;
@@ -46,9 +46,10 @@ for var in "$@"
     esac
   done
 
-
+# Compile and build the application and enclave.
 if [ $sgx = "y" ]; then
     cache=$path/sgx-cache/untrusted/run.sh
+    $cache build log=$logging
 else
     cache=$path/cache/target/release/enclave_cache_bin
     cd "$path/cache/" || exit
@@ -103,6 +104,7 @@ latency_over_number_of_values () {
       $subscriber log=$logging action=latency format=$format valuenr=$valuenr >> $path/logs/lat-over-number/latency-$size-bytes-over-valuenumber-$load.csv
     done
 
+  # terminate the cache in order to ensure it doesn't still respond to old requests
   kill $cache_pid
   wait $cache_pid 2>/dev/null
   kill $sensor_pid
@@ -126,7 +128,6 @@ latency_over_value_size () {
       echo "Sensor with value size of $size bytes" >> $path/logs/lat-over-size/sensor-sized.log
       $sensor log=$logging type=sized format=$format policy=$policy port=5551 period=20 size=$size >> $path/logs/lat-over-size/sensor-sized.log &
       sensor_pid=$!
-      # terminate the cache in order to ensure it doesn't still respond to old requests
       $cache log=$logging format=$format >> $path/logs/cache.log &
       cache_pid=$!
       # wait until the cache is filled: (values x 20ms)
@@ -135,6 +136,7 @@ latency_over_value_size () {
       $subscriber log=$logging action=latency format=$format valuenr=$valuenr >> $path/logs/lat-over-size/latency-$valuenr-values-over-size-$load.csv
       kill $sensor_pid
       wait $sensor_pid 2>/dev/null
+      # terminate the cache in order to ensure it doesn't still respond to old requests
       kill $cache_pid
       wait $cache_pid 2>/dev/null
     done
@@ -160,7 +162,6 @@ throughput_over_number_of_values () {
   echo "Requester started for size $size." > $path/logs/tp-over-number/requester.log &
   for i in {1..10}
     do
-      # terminate the cache in order to ensure it doesn't still respond to old requests
       $cache log=$logging format=$format >> $path/logs/cache.log &
       cache_pid=$!
       # wait until the cache is filled: (values x 20ms)
@@ -172,6 +173,7 @@ throughput_over_number_of_values () {
       $subscriber log=$logging action=throughput format=$format valuenr=$i >> $path/logs/tp-over-number/throughput-$size-bytes-over-valuenumber.csv
       kill $requester_pid
       wait $requester_pid 2>/dev/null
+      # terminate the cache in order to ensure it doesn't still respond to old requests
       kill $cache_pid
       wait $cache_pid 2>/dev/null
     done
@@ -179,7 +181,6 @@ throughput_over_number_of_values () {
   for i in {1..10}
     do
       ((valuenr=$i * 50))
-      # terminate the cache in order to ensure it doesn't still respond to old requests
       $cache log=$logging format=$format >> $path/logs/cache.log &
       cache_pid=$!
       # wait until the cache is filled: (values x 20ms)
@@ -192,6 +193,7 @@ throughput_over_number_of_values () {
       $subscriber log=$logging action=throughput format=$format valuenr=$valuenr >> $path/logs/tp-over-number/throughput-$size-bytes-over-valuenumber.csv
       kill $requester_pid
       wait $requester_pid 2>/dev/null
+      # terminate the cache in order to ensure it doesn't still respond to old requests
       kill $cache_pid
       wait $cache_pid 2>/dev/null    
     done
@@ -219,9 +221,6 @@ throughput_over_value_size () {
   for i in {1..8}
     do
       ((size=$i * 500))     #  -> from 500 to 4000 bytes
-      # terminate the cache in order to ensure it doesn't still respond to old requests
-      kill $cache_pid
-      wait $cache_pid 2>/dev/null # suppressing the output of 'kill'
       $cache log=$logging format=$format >> $path/logs/cache.log &
       cache_pid=$!
       echo "Starting sensor with value size of $size bytes..."
@@ -236,6 +235,9 @@ throughput_over_value_size () {
       sleep 5  # at the beginning, half filled is sufficient; Cache has an expiration of 4sec
       $subscriber log=$logging action=throughput format=$format valuenr=$valuenr >> $path/logs/tp-over-size/throughput-$valuenr-values-over-size.csv
 
+      # terminate the cache in order to ensure it doesn't still respond to old requests
+      kill $cache_pid
+      wait $cache_pid 2>/dev/null # suppressing the output of 'kill'
       kill $sensor_pid
       wait $sensor_pid 2>/dev/null
       kill $subscriber_pid

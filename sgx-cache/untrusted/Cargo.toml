@@ -1,10 +1,10 @@
 [package]
-name = "untrusted"
+name = "sgx-pubsub-cache-untrusted-app"
 version = "0.1.0"
 authors = ["stefan"]
 
 [[bin]]
-name = "sgx-first-steps-untrusted"
+name = "sgx-pubsub-cache-untrusted-app"
 
 [dependencies]
 "sgxs" = "0.5.0"

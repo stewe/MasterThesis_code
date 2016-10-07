@@ -1,7 +1,7 @@
 [package]
-name = "trusted"
+name = "sgx-pubsub-cache-enclave"
 version = "0.1.0"
-authors = ["stefan"]
+authors = ["Stefan Wendt <stefanwendt@posteo.de>"]
 
 [lib]
 crate-type = ["dylib"]
