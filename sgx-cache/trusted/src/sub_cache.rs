@@ -1,32 +1,17 @@
 use collections::Vec;
 use collections::string::{String, ToString};
 use core_collections::{HashMap, VecDeque};
-use enclave::usercall::{UserBox,UserSlice};
+use enclave::usercall::UserSlice;
 
 use super::get_time_in_millis;
 use super::msg_lib::validate;
-
-// use core::marker::Copy;
-//use core::clone::Clone;
-
-//struct OutsourcedData(VecDeque<(u64, Vec<u8>, Vec<u8>)>);
-//impl Clone for OutsourcedData {
-//    fn clone(&self) -> Self {
-//        OutsourcedData(VecDeque::new())
-//    }
-//}
-// fails, because VecDeque doesn't impl Copy
-//impl Copy for OutsourcedData{}
 
 pub struct SubscriptionCache {
     /// capacity per subscription
     capacity: usize,
     expiration: u64,
-    /// String: msg_type; u64: time; V: msg; Vec<u8>: MAC
-//    map: HashMap<String, VecDeque<(u64, V, Vec<u8>)>>,
+    /// String: msg_type; u64: time; UserSlice: msg; Vec<u8>: MAC
     map: HashMap<String, VecDeque<(u64, UserSlice<u8>, Vec<u8>)>>,
-//    map: HashMap<String, UserBox<VecDeque<(u64, &'a [u8], &'a [u8])>>>,
-//    map: HashMap<String, UserBox<OutsourcedData>>,
     key: [u8;16],
 }
 
@@ -67,11 +52,9 @@ impl SubscriptionCache {
         };
         let (mut result, mut to_remove) = (vec!(), vec!());
          for (i, item) in list.iter().enumerate() {
-            // let msg = item.1.clone();
             let msg = item.1.to_enclave_vec();
             // if value is valid
             if validate(&item.2, item.0, &msg_type.to_string(), &msg, self.key) {
-//                result.push(item.clone());
                 result.push((item.0, msg, item.2.clone()));
             } else {
                 to_remove.push(i);
@@ -85,6 +68,7 @@ impl SubscriptionCache {
         result
     }
 
+    #[allow(dead_code)]
     pub fn get_size_per_entry(&self) -> Vec<(String, usize)> {
         self.map.iter().fold(vec!(), |mut acc, (key, val)| { acc.push((key.clone(), val.len())); acc } )
     }
@@ -105,6 +89,7 @@ impl SubscriptionCache {
     }
 
     /// This function is intended for testing purpose.
+    #[allow(dead_code)]
     pub fn corrupt_data() {
         // TODO
     }

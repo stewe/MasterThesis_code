@@ -1,9 +1,8 @@
 use super::msg_proto_defs as pbmsgs;
-use super::{BoolMsg, BytesMsg, BytesVecMsg, CacheMsg, DecodeError, EncodeError, MsgPolicy,
+use super::{BoolMsg, BytesVecMsg, CacheMsg, DecodeError, EncodeError, MsgPolicy,
     SubCacheMsg, U32Msg, U8Msg};
 use get_time_in_millis;
 use super::slice_to_vec;
-// use dh_attestation::*;
 use collections::string::ToString;
 use collections::vec::Vec;
 use core_protobuf::{ Message, MessageStatic, parse_from_bytes, ProtobufError, RepeatedField };
@@ -128,85 +127,6 @@ pub fn to_cache_msg(from: Result<pbmsgs::CacheMsg, DecodeError>) -> Result<Cache
         Err(err) => Err(DecodeError { description: err.description().to_string()}),
     }
 }
-
-// pub fn dha_session_request_proto(enclave_id: u32, msg_type: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>) -> Vec<u8> {
-//     let session_request = pbmsgs::DhaSessionRequest::new();
-//     to_proto(msg_type, &session_request, Some(enclave_id), msg_policy, key, time).unwrap()
-// }
-// 
-// pub fn dha_responder_gen_msg1(ga: Vec<u8>, targetinfo: Vec<u8>, msg_type: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>) -> Vec<u8> {
-//     let mut msg1 = pbmsgs::DhaMsg1::new();
-//     msg1.set_ga(slice_to_vec(&ga));
-//     msg1.set_targetinfo(slice_to_vec(&targetinfo));
-//     to_proto(msg_type, &msg1, None, msg_policy, key, time).unwrap()
-// }
-// 
-// 
-// pub fn dha_msg2(gb: Vec<u8>, report: Report, report_mac: [u8;16], enclave_id: u32, msg_type: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>) -> Vec<u8> {
-//     let mut msg2 = pbmsgs::DhaMsg2::new();
-//     msg2.set_gb(slice_to_vec(&gb));
-//     let mut report_proto = pbmsgs::Report::new();
-//     report_proto.set_report_data(report.report_data);
-//     report_proto.set_misc(report.misc);
-//     msg2.set_report(report_proto);
-//     msg2.set_report_mac(slice_to_vec(&report_mac));
-// 
-//     to_proto(msg_type, &msg2, Some(enclave_id), msg_policy, key, time).unwrap()
-// }
-// 
-// pub fn dha_msg3(report: Report, report_mac: [u8;16], msg_type: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>) -> Vec<u8> {
-//     let mut msg3 = pbmsgs::DhaMsg3::new();
-//     let mut report_proto = pbmsgs::Report::new();
-//     report_proto.set_report_data(report.report_data);
-//     report_proto.set_misc(report.misc);
-//     msg3.set_report(report_proto);
-//     msg3.set_report_mac(slice_to_vec(&report_mac));
-// 
-//     to_proto(msg_type, &msg3, None, msg_policy, key, time).unwrap()
-// }
-
-//pub fn to_dha_msg1(from: Result<pbmsgs::DhaMsg1, DecodeError>) -> Result<DhaMsg1, DecodeError> {
-//         match from {
-//             Ok(msg1) => { Ok(DhaMsg1{
-//                 ga: slice_to_vec(msg1.get_ga()),
-//                 targetinfo: slice_to_vec(msg1.get_targetinfo()),
-//             }) },
-//             Err(err) => Err(err),
-//         }
-// }
-// 
-// pub fn to_dha_msg2(from: Result<pbmsgs::DhaMsg2, DecodeError>) -> Result<DhaMsg2, DecodeError> {
-//     match from {
-//             Ok(msg2) => {
-//                 let mut report_mac: [u8; 16] = [0;16];
-//                 for (i, val) in msg2.get_report_mac().iter().cloned().enumerate() {
-//                     report_mac[i] = val;
-//                 }
-//                 Ok(DhaMsg2{
-//                 gb: slice_to_vec(msg2.get_gb()),
-//                 report: Report{report_data: slice_to_vec(msg2.get_report().get_report_data()),
-//                                 misc: slice_to_vec(msg2.get_report().get_misc()) },
-//                 report_mac: report_mac,
-//             }) },
-//             Err(err) => Err(err),
-//         }
-// }
-// 
-// pub fn to_dha_msg3(from: Result<pbmsgs::DhaMsg3, DecodeError>) -> Result<DhaMsg3, DecodeError> {
-//     match from {
-//         Ok(msg3) => {
-//             let mut report_mac: [u8; 16] = [0;16];
-//             for (i, val) in msg3.get_report_mac().iter().cloned().enumerate() {
-//                 report_mac[i] = val;
-//             }
-//             Ok(DhaMsg3{
-//                 report: Report{report_data: slice_to_vec(msg3.get_report().get_report_data()),
-//                                 misc: slice_to_vec(msg3.get_report().get_misc()) },
-//                 report_mac: report_mac,
-//         })},
-//         Err(err) => Err(err),
-//     }
-// }
 
 pub fn to_bool_msg(from: pbmsgs::BoolMsg) -> BoolMsg {
     BoolMsg { val: from.get_val() }

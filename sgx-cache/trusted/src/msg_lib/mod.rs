@@ -1,5 +1,8 @@
+#![allow(dead_code)]
+
 use collections::{String, Vec};
 use core_rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
+use core::clone;
 use core::fmt;
 use core::iter::repeat;
 use core_crypto::aes::KeySize;
@@ -438,7 +441,6 @@ pub fn decode_u32_msg(msg: Vec<u8>, msg_format: MsgFormat) -> Result<u32, Decode
 }
 
 pub fn send_err_msg(err: String) -> Vec<u8> {
-    // info!("Received unknown or invalid msg: {:?}", &err); // TODO msg and err?!
     let mut msg = vec!();
     for b in b"ERR".iter().cloned().chain(err.into_bytes().into_iter()) {
         msg.push(b);
@@ -462,57 +464,8 @@ pub fn produce_nonce(time: u64, msg_type: &str) -> [u8;12] {
     nonce
 }
 
-use core::clone;
 pub fn slice_to_vec<T: clone::Clone>(slice: &[T]) -> Vec<T> {
     let mut v = vec!();
     v.extend_from_slice(slice);
     v
-}
-
-fn hex_to_num(ascii: u8) -> u8 {
-        match ascii {
-            b'0' ... b'9' => ascii-b'0',
-            b'A' ... b'F' => ascii-b'A'+10,
-            b'a' ... b'f' => ascii-b'a'+10,
-            _ => panic!("Not hex!")
-        }
-    }
-
-    fn hex_to_bytes(raw_hex: &str) -> Vec<u8> {
-        raw_hex.as_bytes().chunks(2).map(|b|(hex_to_num(b[0])<<4) + hex_to_num(b[1])).collect()
-    }
-
-
-unsafe fn rust_crypto_aesni_setup_working_key_128(key: *const u8, round_key: *const u8) {
-    asm!(
-        "\
-            movdqu ($1), %xmm1; \
-            movdqu %xmm1, (%rax); \
-            add $$0x10, %rax; \
-            \
-            aeskeygenassist $$0x01, %xmm1, %xmm2; \
-            call 1f; \
-            jmp 2f; \
-            \
-            1: \
-            pshufd $$0xff, %xmm2, %xmm2; \
-            vpslldq $$0x04, %xmm2, %xmm3; \
-            ret; \
-            pxor %xmm3, %xmm1; \
-            vpslldq $$0x4, %xmm1, %xmm3; \
-            pxor %xmm3, %xmm1; \
-            vpslldq $$0x04, %xmm1, %xmm3; \
-            pxor %xmm3, %xmm1; \
-            pxor %xmm2, %xmm1; \
-            movdqu %xmm1, (%rax); \
-            add $$0x10, %rax; \
-            ret; \
-            \
-            2: \
-        "
-        : "=*m{rax}" (round_key)                    // output
-        : "r" (key)                                 // input
-        : "{xmm1}", "{xmm2}", "{xmm3}", "memory"    // clobbers
-        : "volatile"                                // options
-    );
 }

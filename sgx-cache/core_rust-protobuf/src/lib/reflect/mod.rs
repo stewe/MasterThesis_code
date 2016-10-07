@@ -284,6 +284,7 @@ impl EnumValueDescriptor {
 //     }
 }
 
+#[allow(dead_code)]
 pub struct EnumDescriptor {
     proto: &'static EnumDescriptorProto,
     values: Vec<EnumValueDescriptor>,
