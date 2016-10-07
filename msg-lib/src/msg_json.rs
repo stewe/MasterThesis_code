@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use rustc_serialize::{ Encodable, Decodable};
 use rustc_serialize::json;
 use {BoolMsg, BytesMsg, BytesVecMsg, CacheMsg, DecodeError, EncodeError, MsgPolicy, SubCacheMsg,

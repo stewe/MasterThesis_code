@@ -59,6 +59,7 @@ impl DHAttestation<Vec<u8>> for RustCryptoDHA {
         }
     }
 
+    #[allow(unused_variables)]
     fn dha_responder_gen_msg1(&mut self, session_request: Vec<u8>, targetinfo: Vec<u8>)
         -> Result<Vec<u8>, DecodeError> {
         // ga + targetinfo

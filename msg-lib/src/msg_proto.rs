@@ -1,3 +1,5 @@
+    #![allow(dead_code)]
+
     use protobuf::{ Message, MessageStatic, parse_from_bytes, ProtobufError, RepeatedField };
     use {BoolMsg, BytesMsg, BytesVecMsg, CacheMsg, DecodeError, EncodeError, MsgPolicy,
         SubCacheMsg, U32Msg, U8Msg};

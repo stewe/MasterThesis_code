@@ -1,10 +1,7 @@
-#[macro_use]
-extern crate log;
-// extern crate env_logger;
+#[macro_use] extern crate log;
 extern crate simple_logger;
 extern crate crypto;
 extern crate protobuf;
-// extern crate sgx_isa;
 
 extern crate rand;
 extern crate rustc_serialize;
@@ -20,14 +17,11 @@ use crypto::aes_gcm::*;
 use crypto::aead::{AeadEncryptor, AeadDecryptor};
 use crypto::curve25519::curve25519;
 
-use rustc_serialize::{ Encodable, Decoder, Encoder };
-
 use std::error::Error;
 use std::fmt;
 use std::iter::repeat;
 use std::time::{SystemTime, UNIX_EPOCH};
 use dh_attestation::*;
-// use sgx_isa::{Targetinfo};
 
 #[derive(Clone)]
 pub enum MsgPolicy {
@@ -143,8 +137,6 @@ pub struct SubCacheMsg {
 }
 
 
-
-// think about message builder: Builder::new().set_type(MsgType::Bool(val)).set_security(Sec::Authenticated(key)).set_format(MsgFormat::Json).build()
 
 pub fn encode_bool_msg(val: bool, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat)
 -> Result<Vec<u8>, EncodeError> {
@@ -321,7 +313,7 @@ pub fn decode_u32_msg(msg: Vec<u8>, msg_format: MsgFormat) -> Result<u32, Decode
 
 pub fn get_time_in_millis() -> u64 {
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-    (now.as_secs() * 1000) + (now.subsec_nanos() / 1000000) as u64 // TODO IMPORTANT! nsec / 1000000?!
+    (now.as_secs() * 1000) + (now.subsec_nanos() / 1000000) as u64
 }
 
 pub fn produce_nonce(time: u64, msg_type: &str) -> [u8;12] {
@@ -351,7 +343,7 @@ pub fn get_smk(n: &[u8], q: &[u8]) -> [u8; 16] {
     let mut aad = slice_to_vec(&gab);
     aad.push(1u8);
     let input = &[];
-    let nonce = &[0u8;12];    // TODO?
+    let nonce = &[0u8;12];
     let mut cipher = AesGcm::new(KeySize::KeySize256, &aes_key, nonce, &aad);
     let tag = &mut [0;16];
     let output: &mut [u8] = &mut [];
@@ -369,7 +361,7 @@ pub fn slice_to_vec<T: clone::Clone>(slice: &[T]) -> Vec<T> {
 
 //TODO error msg generation and handling -> create defined msg type!
 pub fn send_err_msg(err: String) -> Vec<u8> {
-    // info!("Received unknown or invalid msg: {:?}", &err); // TODO msg and err?!
+    debug!("Received unknown or invalid msg: {:?}", &err);
     let mut msg = vec!();
     for b in b"ERR".iter().cloned().chain(err.into_bytes().into_iter()) {
         msg.push(b);
@@ -377,34 +369,7 @@ pub fn send_err_msg(err: String) -> Vec<u8> {
     msg
 }
 
-// impl From<Report> for Targetinfo {
-// 	fn from(r: Report) -> Targetinfo {
-// 		Targetinfo{
-// 			measurement: r.mrenclave,
-// 			attributes: r.attributes,
-// 			miscselect: r.miscselect,
-// 			..Targetinfo::default()
-// 		}
-// 	}
-// }
-
-// pub fn ereport(tinfo: &Targetinfo, rdata: &[u8; 64]) -> Report {
-// 	ereport_internal(Some(tinfo),Some(rdata))
-// }
-
-/// Checks whether the report was generated on the same processor with this
-/// enclave specified in the target.
-// pub fn verify_report(report: &Report) -> bool {
-// 	let req=Keyrequest{
-// 		keyname: Keyname::Report as u16,
-// 		keyid: report.keyid,
-// 		..Default::default()
-// 	};
-// 	let key=egetkey(&req);
-// 	let mac_data=unsafe{::core::slice::from_raw_parts(report as *const _ as *const u8,384)};
-// 	aes::cmac_128(&key,mac_data)==report.mac
-// }
-
+#[allow(unused_variables)]
 pub fn ereport(targetinfo: Vec<u8>, report_data: Option<Vec<u8>>) -> Result<Report, String> {
     let data = match report_data {
         Some(mut d) => {
@@ -420,6 +385,7 @@ pub fn ereport(targetinfo: Vec<u8>, report_data: Option<Vec<u8>>) -> Result<Repo
             misc: slice_to_vec(&[0;368]) })
 }
 
+#[allow(unused_variables)]
 pub fn verify_report(report: &Report) -> bool {
     true
 }
