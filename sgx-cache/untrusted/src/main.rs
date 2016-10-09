@@ -70,8 +70,12 @@ fn main() {
     };
 
 
-//    let dev=sgxs::isgx::Device::open("/dev/isgx").unwrap();
-    let dev = sgxs::isgx::Device::open("/dev/sgx").unwrap();
+   let dev = match sgxs::isgx::Device::open("/dev/isgx") {
+       Ok(d) => d,
+       Err(_) => {
+           sgxs::isgx::Device::open("/dev/sgx").unwrap()
+       },
+   };
     let mut mapping = dev.load_with_launch_enclave(&mut file,&sig,OptTok::None(None),&mut le_file,&le_sig).unwrap();
 
     if log_enabled!(log::LogLevel::Debug) {

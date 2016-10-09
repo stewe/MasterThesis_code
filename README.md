@@ -56,6 +56,10 @@ The caching service can be started with the script file [*sgx-cache/untrusted/ru
 
 Passing the parameter **debug** enables verbose logging and executes the enclave in debug mode.
 
+
+## How to configure the caching service
+***TODO!!! TODO!!! TODO!!! TODO!!! TODO!!! TODO!!! TODO!!!***
+
 ## How to start the experiments
 Execute [*experiments.sh*](experiments.sh). Unless at least one of the parameters **latnum**, **latsize** **tpnum** and **tpsize** are passed, all four measurements are processed. The following optional parameters are available:
 
