@@ -1,4 +1,4 @@
-# A Caching Service For The Enclave
+# README - Usage manual for the source code
 
 
 ## Requirements
@@ -45,14 +45,19 @@ impl RandomState {
 
 ## How to build the cache-enclave
 
+Build the enclave using the script [*sgx-cache/trusted/build.sh*](sgx-cache/trusted/build.sh). The optional parameter **debug** compiles the enclave in debug mode, providing more detailed information at errors.
+
+By default the enclave is configured with a stack size of 64 kiB and a heap size of 16 MiB. If you want to change these values, adapt the variables *heap* and *stack* in *build.sh*.
 
 
 ## How to start the cache with enclave
 
+The caching service can be started with the script file [*sgx-cache/untrusted/run.sh*](sgx-cache/untrusted/run.sh). Before you can run the caching service within the enclave, it needs to be build. Either use the dedicated script *build.sh* or execute *run.sh* with the parameter **build** (and optionally **debug**).
 
+Passing the parameter **debug** enables verbose logging and executes the enclave in debug mode.
 
 ## How to start the experiments
-Execute *experiments.sh*. Unless at least one of the parameters *latnum*, *latsize* *tpnum* and *tpsize* are passed, all four measurements are processed. The following optional parameters are available:
+Execute [*experiments.sh*](experiments.sh). Unless at least one of the parameters **latnum**, **latsize** **tpnum** and **tpsize** are passed, all four measurements are processed. The following optional parameters are available:
 
 * **sgx** Runs the experiments with the cache inside an SGX enclave (default without).
 * **json** Runs the experiments with JSON instead of the default format Protocol Buffers.
@@ -65,6 +70,3 @@ Execute *experiments.sh*. Unless at least one of the parameters *latnum*, *latsi
 
 
 
-rust-core_collections/src/fdeda33a9a7326ac4979aee5b0c9657298aebe59/hash/map.rs line 1618:
-
-pub fn new() -> RandomState { //let mut r = rand::thread_rng(); let mut r = rand::XorShiftRng::new_unseeded(); RandomState { k0: r.gen(), k1: r.gen() } }
