@@ -15,9 +15,32 @@ sudo modprobe intel_sgx
 
 Test the success of the installation with `lsmod | grep sgx` and `ls /dev/sgx`.
 
+
 ### ZeroMQ
+Ensure [ZeroMQ](http://zeromq.org/intro:get-the-software) is installed on your system.
 
 ### Rust
+You need nightly Rust. The caching service was developed and tested with version 1.11.0-nightly (801d2682d 2016-07-06). You can install it in the following way:
+
+```bash
+curl -sfO https://static.rust-lang.org/rustup.sh
+chmod +c rustup.sh
+sudo ./rustup.sh --channel=nightly --date=2016-07-07
+```
+
+If you use another version, you need to modify *rust-core_collections*. In the file *src/your_version/hash/map.rs* change the Random Number Generator in the function `RandomState::new` to
+
+```Rust
+impl RandomState {
+    /// Constructs a new `RandomState` that is initialized with random keys.
+    #[inline]
+    #[allow(deprecated)] // rand
+    pub fn new() -> RandomState {
+        let mut r = rand::XorShiftRng::new_unseeded();
+        RandomState { k0: r.gen(), k1: r.gen() }
+    }
+}
+```
 
 
 ## How to build the cache-enclave
@@ -29,7 +52,7 @@ Test the success of the installation with `lsmod | grep sgx` and `ls /dev/sgx`.
 
 
 ## How to start the experiments
-Execute *experiments.sh*, optionally with the following parameters:
+Execute *experiments.sh*. Unless at least one of the parameters *latnum*, *latsize* *tpnum* and *tpsize* are passed, all four measurements are processed. The following optional parameters are available:
 
 * **sgx** Runs the experiments with the cache inside an SGX enclave (default without).
 * **json** Runs the experiments with JSON instead of the default format Protocol Buffers.
@@ -41,11 +64,6 @@ Execute *experiments.sh*, optionally with the following parameters:
 * **threadeval** Starts a routine helping to examine the necessary number of requester threads for throughput measurements.
 
 
-
-
-Necessary steps:
-
-git clone https://github.com/jethrogb/rust-core_collections
 
 rust-core_collections/src/fdeda33a9a7326ac4979aee5b0c9657298aebe59/hash/map.rs line 1618:
 
