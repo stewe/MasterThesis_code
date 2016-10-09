@@ -131,7 +131,7 @@ latency_over_value_size () {
       $cache log=$logging format=$format >> $path/logs/cache.log &
       cache_pid=$!
       # wait until the cache is filled: (values x 20ms)
-      echo "Filling the caches' buffers for 5 sec, then measuring for $i values."
+      echo "Filling the caches' buffers for 5 sec, then measuring for $size bytes."
       sleep 5
       $subscriber log=$logging action=latency format=$format valuenr=$valuenr >> $path/logs/lat-over-size/latency-$valuenr-values-over-size-$load.csv
       kill $sensor_pid
@@ -287,7 +287,6 @@ thread_eval () {
 latency_over_number_of_values_with_load () {
   size=$1
   mkdir -p $path/logs/lat-over-number
-
   for i in {0..10}
     do
       ((threads=$i * 20))
@@ -349,9 +348,6 @@ fi
 if [ $threadeval = "y" ]; then
   thread_eval
 fi
-
-# printf "Press Return for terminating the sensors:"
-# read
 
 # kill the script and all its (child, grandchild, ...) processes
 kill -- -$$
