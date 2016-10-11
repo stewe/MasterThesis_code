@@ -299,6 +299,30 @@ pub fn decode_sub_cache_msg(msg: Vec<u8>, msg_format: MsgFormat)
     }
 }
 
+pub fn decode_bool_msg(msg: Vec<u8>, msg_format: MsgFormat) -> Result<bool, DecodeError> {
+    let bool_decoded: Result<BoolMsg, DecodeError> = match msg_format {
+        MsgFormat::Json => { msg_json::to_msg(msg) },
+        MsgFormat::Protobuf => {
+            msg_proto::to_bool_msg(msg_proto::to_msg::<msg_proto_defs::BoolMsg>(msg)) },
+    };
+    match bool_decoded {
+        Ok(v) => Ok(v.val),
+        Err(e) => Err(e)
+    }
+}
+
+pub fn decode_u8_msg(msg: Vec<u8>, msg_format: MsgFormat) -> Result<u8, DecodeError> {
+    let u8_decoded: Result<U8Msg, DecodeError> = match msg_format {
+        MsgFormat::Json => { msg_json::to_msg(msg) },
+        MsgFormat::Protobuf => {
+            msg_proto::to_u8_msg(msg_proto::to_msg::<msg_proto_defs::U8Msg>(msg)) },
+    };
+    match u8_decoded {
+        Ok(v) => Ok(v.val),
+        Err(e) => Err(e)
+    }
+}
+
 pub fn decode_u32_msg(msg: Vec<u8>, msg_format: MsgFormat) -> Result<u32, DecodeError> {
     let u32_decoded: Result<U32Msg, DecodeError> = match msg_format {
         MsgFormat::Json => { msg_json::to_msg(msg) },

@@ -207,12 +207,18 @@
         }
     }
 
-    pub fn to_bool_msg(from: pbmsgs::BoolMsg) -> BoolMsg {
-        BoolMsg { val: from.get_val() }
+    pub fn to_bool_msg(from: Result<pbmsgs::BoolMsg, DecodeError>) -> Result<BoolMsg, DecodeError> {
+        match from {
+            Ok(m) => Ok(BoolMsg { val: m.get_val() }),
+            Err(e) => Err(e),
+        }
     }
 
-    pub fn to_u8_msg(from: pbmsgs::U8Msg) -> U8Msg {
-        U8Msg { val: from.get_val() as u8 }
+    pub fn to_u8_msg(from: Result<pbmsgs::U8Msg, DecodeError>) -> Result<U8Msg, DecodeError> {
+        match from {
+            Ok(m) => Ok(U8Msg { val: m.get_val() as u8 }),
+            Err(e) => Err(e),
+        }
     }
 
     pub fn to_u32_msg(from: Result<pbmsgs::U32Msg, DecodeError>) -> Result<U32Msg, DecodeError> {
