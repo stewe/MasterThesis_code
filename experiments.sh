@@ -363,22 +363,17 @@ if [ $recovery = "y" ]; then
   cargo build --release
   echo "Waiting for the cache filling its buffers."
   sleep 5
-  rounds=10
-  for i in {1..1000}
+  for i in {1..10000}
   do
     { time ./target/release/safety_service ; } 2>> $path/logs/recovery/uncached.log
   done
   echo "Finished measurements for uncached recovery."
 
-  for i in {1..1000}
+  for i in {1..10000}
   do
     { time ./target/release/safety_service cached ; } 2>> $path/logs/recovery/cached.log
   done
   echo "Finished measurements for cached recovery."
-
-  # kill the script and all its (child, grandchild, ...) processes
-  kill -- -$$
-  exit 0
 fi
 
 # kill the script and all its (child, grandchild, ...) processes

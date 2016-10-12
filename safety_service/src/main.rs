@@ -216,10 +216,8 @@ fn safety_check(inp: &InputT, conf: &ConfigT, state: &mut StateT) -> OutputT {
 pub fn main() {
     if env::args().len() > 1 {
         with_cache();
-        println!("with cache");
     } else {
         without_cache();
-        println!("without cache");
     }
 }
 
@@ -228,6 +226,11 @@ fn with_cache() {
     let msg_format = MsgFormat::Protobuf;
     let key  = [0u8;16];
     let key = (0..16).into_iter().fold(key, |mut acc, x| { acc[x] = x as u8; acc });
+
+    let config = ConfigT::new();
+    let mut state = StateT::new(&config);
+    let mut input_buffer = InputTBuffer::new();
+    let mut inputs = vec![];
 
     let mut ctx = Context::new();
     let mut requester: Socket = ctx.socket(zmq::REQ).unwrap();
@@ -255,11 +258,6 @@ fn with_cache() {
         slice_to_vec(&("unclutch".as_bytes())),
         ]);
     let request = encode_sub_cache_msg(Some(5), filters, "SUB", MsgPolicy::Plain, None, msg_format).unwrap();
-
-    let config = ConfigT::new();
-    let mut state = StateT::new(&config);
-    let mut input_buffer = InputTBuffer::new();
-    let mut inputs = vec![];
 
     requester.send(&request, 0).unwrap();
     let _ = requester.recv_bytes(0);
