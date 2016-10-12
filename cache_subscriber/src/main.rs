@@ -200,7 +200,7 @@ fn cache_throughput(param: &mut Param, msg_format: MsgFormat, sleep_duration: Op
     param.1.send(&encode_cache_msg(vec![], "Start", MsgPolicy::Plain, None, 0, msg_format).unwrap(), 0).unwrap();
     let resp = param.1.recv_bytes(0).unwrap();
     debug!("resp: {:?}", resp);
-    let mut value_size = 0;
+    let value_size;
     let mut msg_example = vec![];
     // try to receive one published message in order to get the message size
     for i in 1..10 {
@@ -227,7 +227,7 @@ fn cache_throughput(param: &mut Param, msg_format: MsgFormat, sleep_duration: Op
     sleep(Duration::from_secs(sleep_duration.unwrap_or(5)));    // 5s for throughput measurement
     let x = decode_cache_msg(msg_example, msg_format).unwrap();
     value_size = decode_bytes_msg(x.msg, msg_format).unwrap().len();
-    
+
     param.1.send(&encode_cache_msg(vec![], "Stop", MsgPolicy::Plain, None, 0, msg_format).unwrap(), 0).unwrap();
     let result_msg = decode_cache_msg(param.1.recv_bytes(0).unwrap(), msg_format).unwrap();
     debug!("received: {:?}", result_msg);

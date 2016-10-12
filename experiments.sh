@@ -12,6 +12,7 @@ latsize=n
 tpnum=n
 tpsize=n
 threadeval=n
+recovery=n
 logging=yes # default: basic logging only
 policy=mac # default: use Message Authentication Codes
 
@@ -36,6 +37,9 @@ for var in "$@"
                 all=n
       ;;
       "threadeval") threadeval=y
+                all=n
+      ;;
+      "recovery") recovery=y
                 all=n
       ;;
       "debug") logging=debug
@@ -66,13 +70,6 @@ sensor=$path/sensors/sensor-rust/target/release/sensor_rust
 subscriber=$path/cache_subscriber/target/release/cache_subscriber
 
 mkdir -p $path/logs
-# build and start the sensors
-# cargo run type=unclutch format=$format policy=mac port=5551 period=20 log=$logging > ../../logs/sensor-unclutch.log &
-# cargo run type=invalid-voltage format=$format policy=mac port=5552 period=21 log=$logging > ../../logs/sensor-invalid-voltage.log &
-# cargo run type=speed-error format=$format policy=mac port=5553 period=22 log=$logging > ../../logs/sensor-speed-error.log &
-# cargo run type=speed-unsafe format=$format policy=mac port=5554 period=23 log=$logging > ../../logs/sensor-speed-unsafe.log &
-# cargo run type=clamp15 format=$format policy=mac port=5555 period=24 log=$logging > ../../logs/sensor-clamp15.log &
-
 
 # param: size of value; load: reqs/sec
 latency_over_number_of_values () {
@@ -195,7 +192,7 @@ throughput_over_number_of_values () {
       wait $requester_pid 2>/dev/null
       # terminate the cache in order to ensure it doesn't still respond to old requests
       kill $cache_pid
-      wait $cache_pid 2>/dev/null    
+      wait $cache_pid 2>/dev/null
     done
 
     kill $sensor_pid
@@ -347,6 +344,41 @@ fi
 
 if [ $threadeval = "y" ]; then
   thread_eval
+fi
+
+if [ $recovery = "y" ]; then
+  mkdir -p $path/logs/recovery
+  # build and start the sensors
+  cd "$path/sensors/sensor-rust" || exit
+  $sensor type=unclutch format=$format policy=mac port=5551 period=20 log=$logging > ../../logs/sensor-unclutch.log &
+  $sensor type=invalid-voltage format=$format policy=mac port=5552 period=20 log=$logging > ../../logs/sensor-invalid-voltage.log &
+  $sensor type=speed-error format=$format policy=mac port=5553 period=20 log=$logging > ../../logs/sensor-speed-error.log &
+  $sensor type=speed-unsafe format=$format policy=mac port=5554 period=20 log=$logging > ../../logs/sensor-speed-unsafe.log &
+  $sensor type=clamp15 format=$format policy=mac port=5555 period=20 log=$logging > ../../logs/sensor-clamp15.log &
+
+  echo "Starting the cache with format=$format and policy=$policy..."
+  $cache log=$logging format=$format >> $path/logs/recovery/cache.log &
+  cache_pid=$!
+  cd "$path/safety_service" || exit
+  cargo build --release
+  echo "Waiting for the cache filling its buffers."
+  sleep 5
+  rounds=10
+  for i in {1..1000}
+  do
+    { time ./target/release/safety_service ; } 2>> $path/logs/recovery/uncached.log
+  done
+  echo "Finished measurements for uncached recovery."
+
+  for i in {1..1000}
+  do
+    { time ./target/release/safety_service cached ; } 2>> $path/logs/recovery/cached.log
+  done
+  echo "Finished measurements for cached recovery."
+
+  # kill the script and all its (child, grandchild, ...) processes
+  kill -- -$$
+  exit 0
 fi
 
 # kill the script and all its (child, grandchild, ...) processes

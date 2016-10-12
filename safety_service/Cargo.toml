@@ -1,0 +1,9 @@
+[package]
+name = "safety_service"
+version = "0.1.0"
+authors = ["Stefan Wendt <stefanwendt@posteo.de>"]
+
+[dependencies]
+rustc-serialize = "^0.3"
+zmq = { git = "https://github.com/erickt/rust-zmq.git", rev = "87a6bd2" }
+msg_lib = { path = "../msg-lib" }
