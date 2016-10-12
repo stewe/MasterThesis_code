@@ -61,11 +61,12 @@ Passing the parameter **debug** enables verbose logging and executes the enclave
 ***TODO!!! TODO!!! TODO!!! TODO!!! TODO!!! TODO!!! TODO!!!***
 
 ## How to start the experiments
-Execute [*experiments.sh*](experiments.sh). Unless at least one of the parameters **latnum**, **latsize** **tpnum** and **tpsize** are passed, all four measurements are processed. The following optional parameters are available:
+Execute [*experiments.sh*](experiments.sh). Unless at least one of the parameters **recovery**, **latnum**, **latsize** **tpnum** and **tpsize** are passed, all four measurements are processed. The following optional parameters are available:
 
 * **sgx** Runs the experiments with the cache inside an SGX enclave (default without).
 * **json** Runs the experiments with JSON instead of the default format Protocol Buffers.
 * **debug** Activates verbose logging and enables debugging features for the enclave.
+* **recovery** Activates the measurements for the recovery time of the safety service.
 * **latnum** Activates the measurements of latency over of the number of requested values.
 * **latsize** Activates the measurements of latency over of the size of the requested values.
 * **tpnum** Activates the measurements of throughput over of the number of requested values.
