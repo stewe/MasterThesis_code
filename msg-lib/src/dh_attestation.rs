@@ -1,6 +1,3 @@
-// extern crate sgx_isa;
-
-// use sgx_isa::{Report, Targetinfo};
 use super::DecodeError;
 use super::rustc_serialize::{Decodable, Encodable, Decoder, Encoder};
 
@@ -33,7 +30,7 @@ pub enum DhaState {
 pub trait DHAttestation<T> {
     fn dha_init_session(&mut self, role: DhaRole);
     fn dha_session_request(&mut self, enclave_id: u32) -> T;
-    fn dha_responder_gen_msg1(&mut self, session_request: T, targetinfo: Vec<u8>)//[u8; 512] Targetinfo)
+    fn dha_responder_gen_msg1(&mut self, session_request: T, targetinfo: Vec<u8>)//[u8; 512]
         -> Result<T, DecodeError>;
     fn dha_initiator_proc_msg1(&mut self, msg1: T, enclave_id: u32) -> Result<T, DecodeError>;
     fn dha_responder_proc_msg2(&mut self, msg2: T) -> Result<T, DecodeError>;
@@ -46,13 +43,13 @@ pub struct DhaSessionRequest { }
 #[derive(RustcDecodable, RustcEncodable)]
 pub struct DhaMsg1 {
     pub ga: Vec<u8>,    //[u8; 32],
-    pub targetinfo: Vec<u8>,    //TargetinfoWrapper, //[u8; 512],//Targetinfo,
+    pub targetinfo: Vec<u8>,
 }
 
 #[derive(RustcDecodable, RustcEncodable)]
 pub struct DhaMsg2 {
     pub gb: Vec<u8>,    //[u8; 32],
-    pub report: Report,       //Report -> Decoder, Wrapper...
+    pub report: Report,
     pub report_mac: [u8; 16],
 }
 
@@ -80,7 +77,6 @@ pub struct DhaMsg3 {
 
 
 pub struct TargetinfoWrapper {
-    // pub targetinfo: Targetinfo,
     pub targetinfo: [u8; 512],
 }
 

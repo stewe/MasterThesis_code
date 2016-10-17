@@ -199,7 +199,7 @@ pub fn encode_sub_cache_msg(number: Option<u32>, filters: Vec<Vec<u8>>, topic: &
 }
 
 pub fn authenticate(msg_type: &str, time: u64, msg: &Vec<u8>, key: &[u8]) -> Vec<u8> {
-    let nonce = produce_nonce(time, msg_type);    // TODO?
+    let nonce = produce_nonce(time, msg_type);
 
     //  aad: includes msg_type, msg and timestamp
     let mut aad: Vec<u8> = vec!();
@@ -212,7 +212,7 @@ pub fn authenticate(msg_type: &str, time: u64, msg: &Vec<u8>, key: &[u8]) -> Vec
     slice_to_vec(mac)
 }
 
-pub fn encrypt(msg_type: &str, time: u64, msg: &Vec<u8>, key: &[u8]) -> (Vec<u8>, [u8;16]){
+pub fn encrypt(msg_type: &str, time: u64, msg: &Vec<u8>, key: &[u8]) -> (Vec<u8>, [u8;16]) {
     let nonce = produce_nonce(time, msg_type);
     //  aad: includes msg_type and timestamp
     let mut aad: Vec<u8> = vec!();
@@ -383,7 +383,6 @@ pub fn slice_to_vec<T: clone::Clone>(slice: &[T]) -> Vec<T> {
     v
 }
 
-//TODO error msg generation and handling -> create defined msg type!
 pub fn send_err_msg(err: String) -> Vec<u8> {
     debug!("Received unknown or invalid msg: {:?}", &err);
     let mut msg = vec!();
@@ -419,41 +418,4 @@ pub fn report_to_vec_u8(report: &Report) -> Vec<u8> {
     bytes.extend_from_slice(&report.report_data);
     bytes.extend_from_slice(&report.misc);
     bytes
-}
-
-// pub struct Report {
-// 	pub cpusvn:     [u8; 16],
-// 	pub miscselect: Miscselect,
-// 	pub _reserved1: [u8; 28],
-// 	pub attributes: Attributes,
-// 	pub mrenclave:  [u8; 32],
-// 	pub _reserved2: [u8; 32],
-// 	pub mrsigner:   [u8; 32],
-// 	pub _reserved3: [u8; 96],
-// 	pub isvprodid:  u16,
-// 	pub isvsvn:     u16,
-// 	pub _reserved4: [u8; 60],
-// 	pub reportdata: [u8; 64],
-// 	pub keyid:      [u8; 32],
-// 	pub mac:        [u8; 16],
-// }
-
-
-#[cfg(test)]
-mod tests {
-
-    use super::{encode_bytes_vec_msg, slice_to_vec, MsgPolicy, MsgFormat};
-
-    #[test]
-    fn it_works() {
-        let val: Vec<Vec<u8>> = slice_to_vec(&[
-            slice_to_vec(&("clamp15".as_bytes())),
-            slice_to_vec(&("invalid-voltage".as_bytes())),
-            slice_to_vec(&("speed-error".as_bytes())),
-            slice_to_vec(&("speed-unsafe".as_bytes())),
-            slice_to_vec(&("unclutch".as_bytes())),
-            ]);
-        println!("DEBUG! {:?}", encode_bytes_vec_msg(val, "SUB", MsgPolicy::Plain, None, MsgFormat::Json));
-        assert!(false);
-    }
 }

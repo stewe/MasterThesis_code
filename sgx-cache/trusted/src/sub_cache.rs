@@ -51,12 +51,13 @@ impl SubscriptionCache {
             None => self.capacity,
         };
         let (mut result, mut to_remove) = (vec!(), vec!());
-         for (i, item) in list.iter().enumerate() {
+        for (i, item) in list.iter().enumerate() {
             let msg = item.1.to_enclave_vec();
             // if value is valid
             if validate(&item.2, item.0, &msg_type.to_string(), &msg, self.key) {
                 result.push((item.0, msg, item.2.clone()));
             } else {
+                // remove entry, since data is corrupted
                 to_remove.push(i);
             }
             if result.len() == n { break }
