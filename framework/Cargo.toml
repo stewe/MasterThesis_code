@@ -1,8 +1,0 @@
-[package]
-name = "framework"
-version = "0.1.0"
-authors = ["Stefan Wendt <stefanwendt@posteo.de>"]
-
-[lib]
-name = "framework"
-#crate-type = ["lib|rlib|dylib|staticlib"] rlib is default
