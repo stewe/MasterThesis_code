@@ -4,16 +4,11 @@ version = "0.1.0"
 authors = ["Stefan Wendt <stefanwendt@posteo.de>"]
 
 [dependencies]
-# time = "^0.1"
 log = "^0.3"
-# env_logger = "*"
 simple_logger = "0.4.0"
 zmq = { git = "https://github.com/erickt/rust-zmq.git", rev = "87a6bd2" }
 zmq-sys = { git = "https://github.com/erickt/rust-zmq.git", rev = "87a6bd2"  }
-# zmq-rs = "^0.1"
-# zmq-ffi = "^0.1"
 rust-crypto = "^0.2"
 rand = "^0.3"
 rustc-serialize = "^0.3"
 protobuf = "^1.0"
-# sgx-isa = "^0.1"

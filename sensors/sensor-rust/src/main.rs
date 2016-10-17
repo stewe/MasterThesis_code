@@ -138,14 +138,10 @@ fn main() {
 
 
 let period_duration = Duration::from_millis(period);
-// let period_time_crate_duration = time::Duration::milliseconds(period as i64);
-// let mut wait_until = time::SteadyTime::now() + period_time_crate_duration;
 let start = Instant::now();
 let mut wait_until = start + period_duration;
 
 loop {
-// let num = 100;
-// for _ in 0..num {
     let value = match sensor_type {
         SensorType::Sized => {
             let rnd: Vec<u8> = (0..size).fold(vec![], |mut acc, _| { acc.push(rand::random()); acc });
@@ -162,29 +158,13 @@ loop {
     };
     socket.send(&value, 0).unwrap();
 
-    // let mut v = value.clone();
-    // v.split_off(16);
-    // info!("sent: {:?}", String::from_utf8(v).unwrap());
-
     debug!("sent: ({} bytes) {:?}", value.len(), value);
 
     let now = Instant::now();
     if wait_until > now {
-        sleep(wait_until - now); // TODO check, maybe transform period into (seconds, milliseconds)
+        sleep(wait_until - now);
     }
     wait_until = wait_until + period_duration;
 }
-
-
-
-// let duration = time::SteadyTime::now() - start;
-// let duration_nanos = duration.num_nanoseconds().unwrap();
-// println!("time for {} iterations: {:?}", num, duration);
-// println!("i.e. overhead for serialization (, encryption) and sending per msg in nanos: {:?}", duration_nanos/(num as i64) - ((period*1000000) as i64));
-
-// socket.close().unwrap();
-// ctx.destroy().unwrap();
-
-
 
 }

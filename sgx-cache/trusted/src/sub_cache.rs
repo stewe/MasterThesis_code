@@ -89,10 +89,5 @@ impl SubscriptionCache {
         }
     }
 
-    /// This function is intended for testing purpose.
-    #[allow(dead_code)]
-    pub fn corrupt_data() {
-        // TODO
-    }
 
 }
