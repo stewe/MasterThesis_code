@@ -4,8 +4,6 @@ use msg_lib::*;
 use msg_lib::dh_attestation::*;
 use msg_lib::rust_crypto_dha::*;
 
-// use super::lazy_static;
-// use super::sgx_isa::Targetinfo;
 use std::collections::HashMap;
 use std::error::Error;
 use std::time::{Instant};
@@ -14,24 +12,6 @@ pub static mut MSG_FORMAT: MsgFormat = MsgFormat::Protobuf;
 
 const CAPACITY: usize = 1000;
 const EXPIRATION: u64 = 21000; // milliseconds
-
-// static ENCLAVE_ID: u32 = 123456789u32;
-
-// static mut DHA: RustCryptoDHA = RustCryptoDHA{
-//     state: DhaState::Responder(DhaResponderState::Start),
-//     n: [0;32],
-//     q: [0;32],
-//     msg_format: MSG_FORMAT,
-// };
-
-// const MAX_CLIENTS: usize = 128;
-
-// static mut clients: [(u32, RustCryptoDHA); MAX_CLIENTS] = [(0u32, RustCryptoDHA{
-//     state: DhaState::Responder(DhaResponderState::Start),
-//     n: [0;32],
-//     q: [0;32],
-//     msg_format: MSG_FORMAT,
-// }); MAX_CLIENTS];
 
 
 static mut INITIALIZED: bool = false;
@@ -62,49 +42,17 @@ pub fn ecall_handle_sub_msg(msg: Vec<u8>) {
 }
 
 fn handle_sub_msg(cache_msg: CacheMsg) {
-
-    // match cache_msg.msg_type.as_str() {
-    //     "unclutch" | "invalid-voltage" | "speed-error" | "speed-unsafe" => {
-    //         // dependent on mac, if no mac: cache ensures confidentiality
-    //         // test MAC validation
-    //         debug!("MAC valididation successful: {}", validate_cache_msg(&cache_msg, KEY));
-    //         // let (valid, decrypted) = decrypt_cache_msg(&cache_msg, KEY);
-    //         // debug!("MAC encryption valid: {}, result: {:?}", valid, decrypted );
-    //     },
-    //     "clamp15" => {
-    //         // test MAC validation
-    //         debug!("MAC valididation successful: {}", validate_cache_msg(&cache_msg, KEY));
-    //         // let (valid, decrypted) = decrypt(&cache_msg, key);
-    //         // debug!("MAC encryption valid: {}, result: {:?}", valid, decrypted );
-    //     },
-    //     _ => {
-    //         // should not match, since the filters are defined precisely
-    //         warn!("FAIL! ...unknown /published sensor message.");
-    //     },
-    // };
-
-    // dependent on mac, if no mac: cache ensures confidentiality
-    // test MAC validation
-    trace!("MAC valididation successful: {}", validate_cache_msg(&cache_msg, KEY));
-    // let (valid, decrypted) = decrypt_cache_msg(&cache_msg, KEY);
-    // debug!("MAC encryption valid: {}, result: {:?}", valid, decrypted );
-
-
     let time = match cache_msg.time {
         Some(t) => t,
         None => get_time_in_millis(),
-
     };
+
     // put into cache, either plain value (authenticated with timestamp=version by cache, or authenticated/encrypted msg (as received))
     // problem: when message is protected by sensor, cache needs the key for authentication (which is okay, since clients need it too.)
     // if key is not availabe to cache, it needs to protect the msg itself.
-    // so, sha or aes-gcm?
-
-    // expecting the cache has the key.
     let mac = match cache_msg.mac {
         Some(m) => m,
         None => {
-            // TODO authentication vs. encryption
             authenticate(cache_msg.msg_type.as_str(), time, &cache_msg.msg, &KEY)
         }
     };
@@ -112,9 +60,7 @@ fn handle_sub_msg(cache_msg: CacheMsg) {
     unsafe {
         (*SUB_CACHE).insert(cache_msg.msg_type.as_str(), time, cache_msg.msg, mac);
     }
-
 }
-
 
 pub fn ecall_handle_request(msg: Vec<u8>) -> Vec<Vec<u8>> {
     let msg_format;
@@ -165,11 +111,8 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                     }
                 }
             }
-
             let mut result = vec!();
-            // TODO IMPORTANT SubCacheMsg
             let (number, subs) = match decode_sub_cache_msg(cache_msg.msg, msg_format) {
-            // let subs = match decode_bytes_vec_msg(cache_msg.msg, msg_format) {
                 Ok(v) => { (match v.0 { Some(n) => Some(n as usize), None => None }, v.1) },
                 Err(e) => {
                     warn!("Error at decoding subscription request: {:?}", e.description());
@@ -209,7 +152,6 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
             let req_per_sec;
             unsafe {
                 if BENCHMARK_REQUEST_CTR.is_none()
-                    // || BENCHMARK_REQUEST_CTR.unwrap() == 0
                     || BENCHMARK_START_TIME.is_none() {
                     return vec![send_err_msg("Benchmark wasn't started.".to_string())]
                 }
@@ -225,7 +167,6 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                 BENCHMARK_START_TIME = None;
             }
             return vec![encode_u32_msg(req_per_sec as u32, "Req/Sec", MsgPolicy::Authenticated, Some(KEY), msg_format).unwrap()]
-
         },
         _ => {},
     };
@@ -233,7 +174,6 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
     // DHA attestation
     vec![match msg_type {
         "REQ" =>  {
-            // 1st
             let mut dha = RustCryptoDHA::new(msg_format, DhaState::Responder(DhaResponderState::Start));
             dha.dha_init_session(DhaRole::Responder);
             dha.state = DhaState::Responder(DhaResponderState::Msg1Sent);
@@ -255,7 +195,7 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
             };
             unsafe {
                 // check state
-                // TODO initiate a new session request? cache has no valid session anymore
+                // initiate a new session request? cache has no valid session anymore
 
                 match (*CLIENTS).get_mut(&client_id) {
                     None => { return vec!(send_err_msg("Not waiting for MS2.".to_string())) },
@@ -272,14 +212,13 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                             msg3
                         }}}}
         },
-        // "ERR" => {  },   // TODO
         "SUB" => unreachable!(),
         _ => send_err_msg("Unknown message type.".to_string()),
     }]
 
 }
 
-unsafe fn get_targetinfo() -> Vec<u8> {   //Targetinfo {
+unsafe fn get_targetinfo() -> Vec<u8> {
     let mut raw_dummy: [u8; 512] = [0; 512];
     for i in 0..511 {
         raw_dummy[i] = i as u8;

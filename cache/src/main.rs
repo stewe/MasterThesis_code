@@ -1,9 +1,7 @@
 #[macro_use]
 extern crate log;
-// extern crate env_logger;
 extern crate simple_logger;
 extern crate msg_lib;
-// extern crate time;
 extern crate zmq;
 extern crate enclave_cache;
 
@@ -45,16 +43,9 @@ fn main() {
         }
     }
 
-    // // env_logger::init().unwrap();
-    // // simple_logger::init().unwrap();
-    // simple_logger::init_with_level(log::LogLevel::Info).unwrap();
-
     info!("Cache started.");
 
     let mut ctx = Context::new();
-
-    // main thread: receive requests, forward into enclave
-    // TODO consider DEALER/ROUTER for asynchronous communication like ADD, see http://zguide.zeromq.org/page:all#advanced-request-reply
     // REP socket for subscription requests
     let mut responder: Socket = ctx.socket(zmq::REP).unwrap();
     responder.bind("tcp://*:5550").unwrap();
@@ -139,8 +130,6 @@ pub fn init_subscriber_socket(ctx: &mut Context) -> Socket {
     socket.connect("tcp://localhost:5555").unwrap();    // clamp15
     socket.connect("tcp://localhost:5559").unwrap();    // sized
 
-
-
     let filters: [(&str,&[u8]);6] = [
         ("clamp15", &[10, 7, 99, 108, 97, 109, 112, 49, 53]),
         ("invalid-voltage", &[10, 15, 105, 110, 118, 97, 108, 105, 100]),
@@ -154,7 +143,6 @@ pub fn init_subscriber_socket(ctx: &mut Context) -> Socket {
         socket.set_subscribe(format!("{}{}", "{\"msg_type\":\"", f.0).as_bytes()).unwrap();
         socket.set_subscribe(f.1).unwrap();
     }
-
     // socket.set_subscribe(&[]).unwrap(); // every message
 
     socket
