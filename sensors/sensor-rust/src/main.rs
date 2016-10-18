@@ -1,7 +1,6 @@
 extern crate msg_lib;
 #[macro_use]
 extern crate log;
-// extern crate env_logger;
 extern crate simple_logger;
 extern crate rand;
 extern crate rustc_serialize;
