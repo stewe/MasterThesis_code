@@ -34,9 +34,8 @@ pub fn ecall_handle_sub_msg(msg: Vec<u8>) {
     let msg_decoded = decode_cache_msg(msg, msg_format);
     match msg_decoded {
         Err(err) => { warn!("{:?}", err.description()); } ,
-        Ok(m) => {  //info!("Received request: {:?}", &m);
+        Ok(m) => {  trace!("Received request: {:?}", &m);
                     handle_sub_msg(m);
-                    // info!("Response: {:?}", resp); }};
                 },
         };
 }
@@ -47,9 +46,7 @@ fn handle_sub_msg(cache_msg: CacheMsg) {
         None => get_time_in_millis(),
     };
 
-    // put into cache, either plain value (authenticated with timestamp=version by cache, or authenticated/encrypted msg (as received))
-    // problem: when message is protected by sensor, cache needs the key for authentication (which is okay, since clients need it too.)
-    // if key is not availabe to cache, it needs to protect the msg itself.
+    // guarantee message protection
     let mac = match cache_msg.mac {
         Some(m) => m,
         None => {
@@ -92,17 +89,10 @@ unsafe fn initialize() {
 fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
     let msg_format;
     unsafe { msg_format = MSG_FORMAT; }
-    if cache_msg.mac.is_some() {
-        // TODO
-        // get SMK for cache_msg.enclave_id
-        // verify, decrypt
-    }
-
     let msg_type = cache_msg.msg_type.as_str();
 
     match msg_type {
         "SUB" => {
-            // TODO if DHA, check validity of request
             unsafe {
                 if BENCHMARK_REQUEST_CTR.is_some() {
                     match BENCHMARK_REQUEST_CTR.as_mut() {
@@ -127,16 +117,19 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                             let values = (*SUB_CACHE).get(topic_str, number);
                             // build msgs
                             let mut msgs: Vec<Vec<u8>> = values.into_iter().map(|(time, msg, mac)|
-                                encode_all_given(msg, topic_str, Some(mac), time, msg_format).unwrap() ).collect();
-                                trace!("{} values for topic {}", msgs.len(), t);
+                                    encode_all_given(msg, topic_str, Some(mac), time, msg_format)
+                                    .unwrap()).collect();
+                            trace!("{} values for topic {}", msgs.len(), t);
                             result.append(&mut msgs);
                         }
                     },
-                    Err(e) => { warn!("Error at decoding a topic of a subscription request: {:?}", e.description()); },
+                    Err(e) => { warn!("Error at decoding a topic of a subscription request: {:?}",
+                                        e.description()); },
                 }
             }
             let response_size = result.len() as u32;
-            result.insert(0, encode_u32_msg(response_size, "SUBACK", MsgPolicy::Plain, None, msg_format).unwrap());
+            result.insert(0, encode_u32_msg(response_size, "SUBACK", MsgPolicy::Plain,
+                                            None, msg_format).unwrap());
             return result
         },
         "Start" => {
@@ -145,7 +138,8 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                 BENCHMARK_START_TIME = Some(Instant::now())
             }
             warn!("Started counter for measuring requests/second.");
-            return vec![encode_cache_msg(vec![], "OK", MsgPolicy::Plain, None, get_time_in_millis(), msg_format).unwrap()]
+            return vec![encode_cache_msg(vec![], "OK", MsgPolicy::Plain, None,
+                                        get_time_in_millis(), msg_format).unwrap()]
         },
         "Stop" => {
             let stop_time = Instant::now();
@@ -156,9 +150,11 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                     return vec![send_err_msg("Benchmark wasn't started.".to_string())]
                 }
                 let dur = stop_time.duration_since(BENCHMARK_START_TIME.unwrap());
-                let dur_float = (dur.as_secs() as f64) + (dur.subsec_nanos() as f64 / 1000000000f64);
+                let dur_float = (dur.as_secs() as f64)
+                                + (dur.subsec_nanos() as f64 / 1000000000f64);
                 req_per_sec = (BENCHMARK_REQUEST_CTR.unwrap() as f64) / dur_float;
-                warn!("BENCHMARK_REQUEST_CTR: {}, duration: {:?} = {}", BENCHMARK_REQUEST_CTR.unwrap(), dur, dur_float);
+                warn!("BENCHMARK_REQUEST_CTR: {}, duration: {:?} = {}",
+                        BENCHMARK_REQUEST_CTR.unwrap(), dur, dur_float);
 
             }
             warn!("Benchmark result: {} requests per second", req_per_sec as u32);
@@ -166,7 +162,8 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                 BENCHMARK_REQUEST_CTR = None;
                 BENCHMARK_START_TIME = None;
             }
-            return vec![encode_u32_msg(req_per_sec as u32, "Req/Sec", MsgPolicy::Authenticated, Some(KEY), msg_format).unwrap()]
+            return vec![encode_u32_msg(req_per_sec as u32, "Req/Sec", MsgPolicy::Authenticated,
+                        Some(KEY), msg_format).unwrap()]
         },
         _ => {},
     };
@@ -194,9 +191,6 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                 None => { return vec!(send_err_msg("Client_id is missing.".to_string())) }
             };
             unsafe {
-                // check state
-                // initiate a new session request? cache has no valid session anymore
-
                 match (*CLIENTS).get_mut(&client_id) {
                     None => { return vec!(send_err_msg("Not waiting for MS2.".to_string())) },
                     Some(dha) => {

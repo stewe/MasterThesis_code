@@ -7,7 +7,7 @@ extern crate enclave_cache;
 
 use std::env;
 use enclave_cache::cache_enclave;
-use msg_lib::{ MsgFormat};
+use msg_lib::MsgFormat;
 use zmq::{Socket, Context, DONTWAIT, poll, POLLIN};
 
 
@@ -18,7 +18,8 @@ fn main() {
     if args.len() > 1 {
         for arg in env::args().skip(1) {
             let mut splitted = arg.split('=');
-            let (k, val) = (splitted.next().expect(format!("Invalid argument: {}", arg).as_str()), splitted.next().expect(format!("Invalid argument: {}", arg).as_str()));
+            let (k, val) = (splitted.next().expect(format!("Invalid argument: {}", arg).as_str()),
+                            splitted.next().expect(format!("Invalid argument: {}", arg).as_str()));
             match k {
                 "log" => {
                     match val {
@@ -63,20 +64,6 @@ fn main() {
 
     loop {
         // read message from zmq socket
-
-        // ZeroMQ:
-        // If none of the requested events have occurred on any zmq_pollitem_t item,
-        // zmq_poll() shall wait timeout milliseconds for an event to occur on any of
-        // the requested items. If the value of timeout is 0, zmq_poll() shall return immediately.
-        // If the value of timeout is -1, zmq_poll() shall block indefinitely until
-        // a requested event has occurred on at least one zmq_pollitem_t.
-
-        // OSX man poll:
-        // If timeout is greater than zero, it specifies a maximum interval (in mil-
-        // liseconds) to wait for any file descriptor to become ready.  If timeout
-        // is zero, then poll() will return without blocking. If the value of
-        // timeout is -1, the poll blocks indefinitely.
-
         match poll(&mut [subscriber.as_poll_item(POLLIN), responder.as_poll_item(POLLIN)], -1) {
             Ok(n) => {
                 if n > 0 {
@@ -86,14 +73,13 @@ fn main() {
                                 debug!("msg: {:?}", &msg);
                                 let responses = cache_enclave::ecall_handle_request(msg);
                                 match responses.len() {
-                                    0 => {responder.send(&[], 0).unwrap(); },    // TODO this will break the REP-SND/RECV pattern!
+                                    0 => {responder.send(&[], 0).unwrap(); },
                                     1 => { responder.send(&responses.first().unwrap(), 0).unwrap(); },
                                     _ => {
                                         responder.send(&responses.first().unwrap(), 0).unwrap();
                                         let mut i  = 0;
                                         for resp in responses.iter().skip(1) {
                                             publisher.send(&resp, 0).unwrap();
-                                            // sleep(dur);
                                             i = i + 1;
                                         }
                                         debug!("returned {} msgs.", i);
@@ -104,7 +90,7 @@ fn main() {
                         }
                     }
                     loop {
-                        match subscriber.recv_bytes(DONTWAIT) { // TODO adapt to message format (e.g. google protocol buffers); handle in an approriate way!
+                        match subscriber.recv_bytes(DONTWAIT) {
                             Ok(msg) =>  {
                                 trace!("msg: {:?}", &msg);
                                 let _ = cache_enclave::ecall_handle_sub_msg(msg);
@@ -143,7 +129,6 @@ pub fn init_subscriber_socket(ctx: &mut Context) -> Socket {
         socket.set_subscribe(format!("{}{}", "{\"msg_type\":\"", f.0).as_bytes()).unwrap();
         socket.set_subscribe(f.1).unwrap();
     }
-    // socket.set_subscribe(&[]).unwrap(); // every message
 
     socket
 }

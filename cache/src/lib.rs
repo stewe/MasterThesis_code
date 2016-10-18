@@ -1,6 +1,4 @@
 #[macro_use]
-extern crate lazy_static;
-#[macro_use]
 extern crate log;
 extern crate simple_logger;
 extern crate zmq;
@@ -16,8 +14,7 @@ pub struct SubscriptionCache<V> {
     /// capacity per subscription
     capacity: usize,
     expiration: u64,
-    // String: msg_type
-    // u64: time; V: msg; Vec<u8>: MAC
+    /// String: msg_type, (u64: time; V: msg; Vec<u8>: MAC)
     map: HashMap<String, VecDeque<(u64, V, Vec<u8>)>>,
     key: [u8;16],
 }
@@ -93,6 +90,4 @@ impl SubscriptionCache<Vec<u8>> {
             list.pop_back();
         }
     }
-
-
 }
