@@ -7,8 +7,7 @@ extern crate zmq;
 use std::fmt;
 use std::env;
 use msg_lib::{decode_cache_msg, decode_bool_msg, decode_u8_msg, encode_sub_cache_msg,
-                slice_to_vec, validate_cache_msg,
-                MsgFormat, MsgPolicy};
+                slice_to_vec, validate_cache_msg, MsgFormat, MsgPolicy};
 use zmq::{Socket, Context};
 
 
@@ -97,7 +96,8 @@ struct StateT {
 
 impl fmt::Debug for InputT {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!{f, "unclutch: {}, invalid voltage: {}, speed error: {}, speed unsafe: {}, clamp15: {}", self.i6_unclutch, self.i5_invalid_voltage, self.i4_speed_error, self.i3_speed_unsafe, self.i2_clamp15}
+        write!{f, "unclutch: {}, invalid voltage: {}, speed error: {}, speed unsafe: {}, clamp15: {}",
+                self.i6_unclutch, self.i5_invalid_voltage, self.i4_speed_error, self.i3_speed_unsafe, self.i2_clamp15}
     }
 }
 
@@ -133,7 +133,8 @@ impl ConfigT {
 
 impl fmt::Debug for ConfigT {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "debounce1: {}, debounce2: {}, rising edge: {}", self.c1_debounce1, self.c2_debounce2, self.c3_rising_edge)
+        write!(f, "debounce1: {}, debounce2: {}, rising edge: {}",
+                self.c1_debounce1, self.c2_debounce2, self.c3_rising_edge)
     }
 }
 
@@ -157,7 +158,8 @@ impl StateT {
 
 impl fmt::Debug for StateT {
     fn fmt (&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "curr_err: {}, curr_qerr: {}, clamp15: {})", self.curr_err, self.curr_qerr, self.clamp15)
+        write!(f, "curr_err: {}, curr_qerr: {}, clamp15: {})",
+                    self.curr_err, self.curr_qerr, self.clamp15)
     }
 }
 
