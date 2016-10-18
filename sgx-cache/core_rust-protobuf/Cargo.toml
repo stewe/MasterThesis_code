@@ -3,6 +3,7 @@
 name = "core_rust-protobuf"
 version = "1.0.24"
 authors = ["Stepan Koltsov <stepan.koltsov@gmail.com>"]
+# modifications by Stefan Wendt <stefanwendt@posteo.de>
 license = "MIT/Apache-2.0"
 homepage = "https://github.com/stepancheg/rust-protobuf/"
 repository = "https://github.com/stepancheg/rust-protobuf/"

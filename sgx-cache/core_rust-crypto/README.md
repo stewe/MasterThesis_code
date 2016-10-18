@@ -1,10 +1,10 @@
-# Rust-Crypto
-
 **This is a modification of the Rust Crate *rust-crypto*** (<https://github.com/DaGenix/rust-crypto/>)
 
 1. Runs with #[!no_std]
 2. Everything that is not necessary for AES-GCM is removed.
 
+
+# Rust-Crypto - original README
 
 A (mostly) pure-Rust implementation of various common cryptographic algorithms.
 

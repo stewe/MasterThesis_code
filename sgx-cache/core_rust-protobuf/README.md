@@ -1,4 +1,12 @@
-rust-protobuf
+
+**This is a modification of the Rust Crate *rust-protobuf* !** 
+
+**Runs with #[!no_std]**
+
+
+
+
+rust-protobuf - original README
 =============
 
 <!-- https://travis-ci.org/stepancheg/rust-protobuf.png -->
