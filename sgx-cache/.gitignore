@@ -4,7 +4,6 @@ target
 Cargo.lock
 logs/
 nohup.out
-rand/
 sgx-logs.zip
 sgx-utils-files/
 trusted/src/lib.rs.save.1
