@@ -15,6 +15,7 @@ sudo modprobe intel_sgx
 
 Test the success of the installation with `lsmod | grep sgx` and `ls /dev/sgx`.
 
+**sgx-utils** require GNU binutils version 2.26.
 
 ### ZeroMQ
 Ensure [ZeroMQ](http://zeromq.org/intro:get-the-software) is installed on your system.
