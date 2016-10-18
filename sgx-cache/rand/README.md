@@ -1,3 +1,9 @@
+
+**This is a modification of the Rust Crate *rand* !**
+**Runs with #[!no_std]**
+**origin:** [https://github.com/jethrogb/rand/tree/core]
+
+
 rand
 ====
 
@@ -49,4 +55,3 @@ use rand::{Rng, ChaChaRng};
 let mut rng = rand::ChaChaRng::new_unseeded();
 println!("i32: {}, u32: {}", rng.gen::<i32>(), rng.gen::<u32>())
 ```
-
