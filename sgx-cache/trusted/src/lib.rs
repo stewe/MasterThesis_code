@@ -15,7 +15,8 @@ extern crate core_protobuf;
 mod msg_lib;
 mod sub_cache;
 
-use msg_lib::{authenticate, decode_cache_msg, decode_sub_cache_msg, encode_all_given, encode_cache_msg, encode_u32_msg, send_err_msg, CacheMsg, MsgFormat, MsgPolicy};
+use msg_lib::{authenticate, decode_cache_msg, decode_sub_cache_msg, encode_all_given,
+                encode_cache_msg, encode_u32_msg, send_err_msg, CacheMsg, MsgFormat, MsgPolicy};
 use sub_cache::*;
 use collections::{String, Vec};
 use collections::string::ToString;
@@ -34,7 +35,8 @@ pub const MSG_FORMAT: MsgFormat = MsgFormat::Json;
 pub const MSG_FORMAT: MsgFormat = MsgFormat::Protobuf;
 
 lazy_static!{
-    static ref SUB_CACHE: Mutex<SubscriptionCache> = Mutex::new(SubscriptionCache::new(CAPACITY, EXPIRATION, KEY));
+    static ref SUB_CACHE: Mutex<SubscriptionCache> = Mutex::new(SubscriptionCache::new(CAPACITY,
+                                                                                EXPIRATION, KEY));
     static ref BENCHMARK_REQUEST_CTR: Mutex<Option<u32>> = Mutex::new(None);
     static ref BENCHMARK_START_TIME: Mutex<Option<u64>> = Mutex::new(None);
     static ref RESPONSE_MSGS: Mutex<Vec<UserSlice<u8>>> = Mutex::new(vec![]);
@@ -48,7 +50,10 @@ pub extern "C" fn entry(ecall: u64, p1: u64, p2: u64, _ignore:u64, p3: u64, time
     set_time(time);
 
     match ECall::from_u64(ecall).unwrap() {
-        ECall::InitUserHeap => { unsafe{do_usercall(ecall, p1, p2, p3, time)}; init_user_heap(p1, p2); return 0 },
+        ECall::InitUserHeap => {    unsafe{do_usercall(ecall, p1, p2, p3, time)};
+                                    init_user_heap(p1, p2);
+                                    return 0
+                                },
         ECall::HandleRequest => { let msg: Vec<u8> = unsafe{ (*(p1 as *const Vec<u8>)).clone() };
                                 let response = ecall_handle_request(msg);
                                 let mut response_msgs = RESPONSE_MSGS.lock();
@@ -62,10 +67,12 @@ pub extern "C" fn entry(ecall: u64, p1: u64, p2: u64, _ignore:u64, p3: u64, time
                                     (*response_msgs).push(UserSlice::clone_from(&resp));
                                 }
 
-                                let mut output_msgs: Vec<u64> = unsafe{ response_msgs.iter().map(|ref slice| slice.as_ptr() as u64).rev().collect() };
+                                let mut output_msgs: Vec<u64> = unsafe{ response_msgs.iter()
+                                        .map(|ref slice| slice.as_ptr() as u64).rev().collect() };
                                 let out_len = output_msgs.len() as u64;
                                 output_msgs.insert(0, out_len);
-                                // Somehow the the first value becomes overwritten with '0'. Thus a placeholder is inserted.
+                                // Somehow the the first value becomes overwritten with '0'.
+                                // Thus a placeholder is inserted.
                                 output_msgs.insert(0, 0);
                                 let out_slice = UserSlice::clone_from(&output_msgs);
                                 return unsafe{ out_slice.as_ptr() as u64 }
@@ -90,7 +97,7 @@ fn ecall_handle_sub_msg(msg: Vec<u8>) {
 
     let msg_decoded = decode_cache_msg(msg, msg_format);
     match msg_decoded {
-        Err(_) => {}, //{ warn!("{:?}", err.description()); } ,
+        Err(_) => {},
         Ok(m) => { handle_sub_msg(m); },
     };
 }
@@ -162,13 +169,15 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                 }
             }
             let response_size = result.len() as u32;
-            result.insert(0, encode_u32_msg(response_size, "SUBACK", MsgPolicy::Plain, None, msg_format).unwrap());
+            result.insert(0, encode_u32_msg(response_size, "SUBACK",
+                            MsgPolicy::Plain, None, msg_format).unwrap());
             return result
         },
         "Start" => {
             *(BENCHMARK_REQUEST_CTR.lock()) = Some(0);
             *(BENCHMARK_START_TIME.lock()) = Some(get_time_in_millis());
-            return vec![encode_cache_msg(vec![], "OK", MsgPolicy::Plain, None, get_time_in_millis(), msg_format).unwrap()]
+            return vec![encode_cache_msg(vec![], "OK", MsgPolicy::Plain,
+                        None, get_time_in_millis(), msg_format).unwrap()]
         },
         "Stop" => {
             let stop_time = get_time_in_millis();
@@ -183,7 +192,8 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
             req_per_sec = (ctr.unwrap() as f64) / dur_secs;
                 *ctr = None;
                 *start_time = None;
-            return vec![encode_u32_msg(req_per_sec as u32, "Req/Sec", MsgPolicy::Authenticated, Some(KEY), msg_format).unwrap()]
+            return vec![encode_u32_msg(req_per_sec as u32, "Req/Sec", MsgPolicy::Authenticated,
+                        Some(KEY), msg_format).unwrap()]
 
         },
         _ => {},
