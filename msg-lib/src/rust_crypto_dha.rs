@@ -63,15 +63,6 @@ impl DHAttestation<Vec<u8>> for RustCryptoDHA {
     fn dha_responder_gen_msg1(&mut self, session_request: Vec<u8>, targetinfo: Vec<u8>)
         -> Result<Vec<u8>, DecodeError> {
         // ga + targetinfo
-
-        // 1. deserialize session_request and check it (json and protobuf)!
-        // !!! session_request contains no information, thus no need to decode!
-        // match from_json::<DhaSessionRequest>(session_request) {
-        //     Ok(_) => { },
-        //     Err(err) => {return Err(DecodeError { description: err.description().to_string()}) },
-        // };
-
-        // 2. produce msg1
         let ga = slice_to_vec(&self.ga);
         let p = (ga, targetinfo, "MS1", MsgPolicy::Plain, None, None);
         match self.msg_format {
@@ -109,7 +100,7 @@ impl DHAttestation<Vec<u8>> for RustCryptoDHA {
 
                 let aad: Vec<u8> = report_to_vec_u8(&report);
 
-                let nonce = &gb[..12];    // TODO?
+                let nonce = &gb[..12];
                 let mut cipher = AesGcm::new(KeySize::KeySize128, &smk, nonce, &aad);
                 let report_mac = &mut [0;16];
                 cipher.encrypt(&[], &mut [], report_mac);
@@ -237,11 +228,5 @@ impl DHAttestation<Vec<u8>> for RustCryptoDHA {
             },
             Err(err) => return Err(err),
         }
-
-        // match self.msg_format {
-        //     MsgFormat::Json => Ok(json_::dha_msg3(p.0, p.1, p.2, p.3)),
-        //     MsgFormat::Protobuf => Ok(proto::dha_msg3(p.0, p.1, p.2, p.3)),
-        // }
-
     }
 }
