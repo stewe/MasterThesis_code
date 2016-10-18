@@ -1,25 +1,20 @@
 extern crate msg_lib;
 #[macro_use]
 extern crate log;
-// extern crate env_logger;
 extern crate simple_logger;
-// extern crate time;
 extern crate zmq;
 
 use std::env;
 use std::str::FromStr;
 use std::thread;
-
-use msg_lib::{ decode_cache_msg, decode_u32_msg, decode_bytes_msg,
-                //encode_bool_msg, encode_u8_msg, encode_bytes_vec_msg,
-                encode_cache_msg, encode_sub_cache_msg,
-                MsgFormat, MsgPolicy, slice_to_vec};
 use std::time::{Duration, Instant};
 use std::thread::sleep;
+use msg_lib::{ decode_cache_msg, decode_u32_msg, decode_bytes_msg,
+                encode_cache_msg, encode_sub_cache_msg,
+                MsgFormat, MsgPolicy, slice_to_vec};
 use zmq::{Context, DONTWAIT, Socket};
 
 struct Param<'a>(Option<u32>, &'a mut Socket, &'a mut Socket);
-
 
 fn main() {
 
@@ -127,7 +122,6 @@ fn main() {
 fn get_sockets(ctx: &mut Context) -> (Socket, Socket) {
     let mut subscriber = ctx.socket(zmq::SUB).unwrap();
     subscriber.connect("tcp://localhost:5560").unwrap();
-    // TODO subscribe to specific filters
 
     let filters: [(&str,&[u8]);6] = [
         ("clamp15", &[10, 7, 99, 108, 97, 109, 112, 49, 53]),
@@ -158,7 +152,6 @@ fn start_requester(ctx: &mut Context, threads: usize, period_ms: Option<u64>, va
         let start = Instant::now();
         let mut wait_until = start + period_duration;
 
-        // ... pass to a thread, request in a loop (no period vs period)
         handles.push(thread::spawn(move || {
             let filters = vec![slice_to_vec("sized".as_bytes())];
             let request = encode_sub_cache_msg(Some(valuenr), filters, "SUB", MsgPolicy::Plain, None, msg_format).unwrap();
@@ -206,17 +199,7 @@ fn cache_throughput(param: &mut Param, msg_format: MsgFormat, sleep_duration: Op
     for i in 1..10 {
         match param.2.recv_bytes(DONTWAIT) {
             Ok(v) => {
-                msg_example = v;// break;
-    //                value_size = match msg_format {
-//                    MsgFormat::Json => {
-//                        let val_str = String::from_utf8(decode_cache_msg(v, msg_format).unwrap().msg).unwrap();
-//                        val_str.chars().filter(|c| c == &',').count() + 1
-//                    }
-//                    MsgFormat::Protobuf => {
-//                        v.len() - v.len()%50
-//                    }
-//                };
-//                break;
+                msg_example = v;
             },
             _ => {
                 debug!("Need to wait for a published message.");
@@ -236,36 +219,18 @@ fn cache_throughput(param: &mut Param, msg_format: MsgFormat, sleep_duration: Op
 
 fn average_request_time(param: &mut Param, iterations: u32, msg_format: MsgFormat) -> (Duration, usize) {
     let (dur, value_size) = measure_cached_subscription(param, msg_format);
-    //let mut dvec = vec![dur];
     let mut acc = dur.clone();
     for _ in 0..iterations-1 {
         let d = measure_cached_subscription(param, msg_format).0;
         acc = acc + d;
-        //dvec.push(d);
     }
-    //let mut x = dvec.as_mut_slice();
-    //x.sort();
-    //for y in x {
-        // info!("{}, {}", y.as_secs(), y.subsec_nanos());
-    //}
     let dur = acc / iterations;
 
-
-    // let dur = (0..iterations-1).fold(dur, |acc, _| {
-    //     let d = measure_cached_subscription(param, msg_format).0;
-    //     info!("{:?}", d);
-    //     acc + d
-    //     }) / iterations;
     (dur, value_size)
 }
 
 fn measure_cached_subscription(param: &mut Param, msg_format: MsgFormat) -> (Duration, usize) {
     let filters = slice_to_vec(&[
-        // slice_to_vec(&("clamp15".as_bytes())),
-        // slice_to_vec(&("invalid-voltage".as_bytes())),
-        // slice_to_vec(&("speed-error".as_bytes())),
-        // slice_to_vec(&("speed-unsafe".as_bytes())),
-        // slice_to_vec(&("unclutch".as_bytes())),
         slice_to_vec(&("sized".as_bytes())),
         ]);
     let request = encode_sub_cache_msg(param.0, filters, "SUB", MsgPolicy::Plain, None, msg_format).unwrap();
@@ -277,7 +242,6 @@ fn measure_cached_subscription(param: &mut Param, msg_format: MsgFormat) -> (Dur
 
 fn cached_subscription(param: &mut Param, request: Vec<u8>, msg_format: MsgFormat) -> usize {
     // let (topics, req, sub) = (param.0, param.1, param.2);
-    // TODO think about timer (timeout for this function...)
     param.1.send(&request, 0).unwrap();
 
     let resp = param.1.recv_bytes(0).unwrap();
@@ -295,7 +259,6 @@ fn cached_subscription(param: &mut Param, request: Vec<u8>, msg_format: MsgForma
         }
     };
 
-    // warn!("value size: {:?}", value_size);
     for _ in 1..total_values {
         let value = param.2.recv_bytes(0).unwrap();
         trace!("received value: {:?}", value);
