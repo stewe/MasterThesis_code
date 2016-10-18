@@ -38,7 +38,7 @@ lazy_static!{
     static ref BENCHMARK_REQUEST_CTR: Mutex<Option<u32>> = Mutex::new(None);
     static ref BENCHMARK_START_TIME: Mutex<Option<u64>> = Mutex::new(None);
     static ref RESPONSE_MSGS: Mutex<Vec<UserSlice<u8>>> = Mutex::new(vec![]);
-} 
+}
 static LAST_KNOWN_TIME: Mutex<u64> = Mutex::new(0u64);
 pub static USER_HEAP_INITIATED: Mutex<bool> = Mutex::new(false);
 
@@ -66,7 +66,7 @@ pub extern "C" fn entry(ecall: u64, p1: u64, p2: u64, _ignore:u64, p3: u64, time
                                 let out_len = output_msgs.len() as u64;
                                 output_msgs.insert(0, out_len);
                                 // Somehow the the first value becomes overwritten with '0'. Thus a placeholder is inserted.
-                                output_msgs.insert(0, 0);  
+                                output_msgs.insert(0, 0);
                                 let out_slice = UserSlice::clone_from(&output_msgs);
                                 return unsafe{ out_slice.as_ptr() as u64 }
                                },
@@ -117,14 +117,10 @@ fn handle_sub_msg(cache_msg: CacheMsg) {
         None => get_time_in_millis(),
 
     };
-    // put into cache, either plain value (authenticated with timestamp=version by cache, or authenticated/encrypted msg (as received))
-    // problem: when message is protected by sensor, cache needs the key for authentication (which is okay, since clients need it too.)
-    // if key is not availabe to cache, it needs to protect the msg itself.
-    // expecting the cache has the key.
+    // garuantee message protection
     let mac = match cache_msg.mac {
         Some(m) => m,
         None => {
-            // TODO authentication vs. encryption
             authenticate(cache_msg.msg_type.as_str(), time, &cache_msg.msg, &KEY)
         }
     };
@@ -134,17 +130,10 @@ fn handle_sub_msg(cache_msg: CacheMsg) {
 
 fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
     let msg_format = MSG_FORMAT;
-    if cache_msg.mac.is_some() {
-        // TODO
-        // get SMK for cache_msg.enclave_id
-        // verify, decrypt
-    }
-
     let msg_type = cache_msg.msg_type.as_str();
 
     match msg_type {
         "SUB" => {
-            // TODO if DHA, check validity of request
             let mut ctr = BENCHMARK_REQUEST_CTR.lock();
             if ctr.is_some() {
                 match ctr.as_mut() {
@@ -154,9 +143,7 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
             }
 
             let mut result = vec!();
-            // TODO IMPORTANT SubCacheMsg
             let (number, subs) = match decode_sub_cache_msg(cache_msg.msg, msg_format) {
-            // let subs = match decode_bytes_vec_msg(cache_msg.msg, msg_format) {
                 Ok(v) => { (match v.0 { Some(n) => Some(n as usize), None => None }, v.1) },
                 Err(_) => { return vec![] },
             };
@@ -171,7 +158,7 @@ fn handle_request(cache_msg: CacheMsg) -> Vec<Vec<u8>> {
                         encode_all_given(msg, topic_str, Some(mac), time, msg_format).unwrap() ).collect();
                         result.append(&mut msgs);
                     },
-                    Err(_) => { }, //warn!("Error at decoding a topic of a subscription request: {:?}", e.description()); },
+                    Err(_) => { },
                 }
             }
             let response_size = result.len() as u32;

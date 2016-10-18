@@ -258,7 +258,9 @@ impl Decodable for SubCacheMsg {
 }
 
 
-pub fn encode_cache_msg(msg: Vec<u8>, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, time: u64, msg_format: MsgFormat) -> Result<Vec<u8>, EncodeError> {
+pub fn encode_cache_msg(msg: Vec<u8>, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>,
+                        time: u64, msg_format: MsgFormat)
+-> Result<Vec<u8>, EncodeError> {
     let p = (topic, msg, None, policy, key, Some(time));
     match msg_format {
         MsgFormat::Json => msg_json::to_json_from_bytes_msg(p.0, p.1, p.2, p.3, p.4, p.5),
@@ -266,7 +268,9 @@ pub fn encode_cache_msg(msg: Vec<u8>, topic: &str, policy: MsgPolicy, key: Optio
     }
 }
 
-pub fn encode_all_given(msg: Vec<u8>, msg_type: &str, mac: Option<Vec<u8>>, time: u64, msg_format: MsgFormat) -> Result<Vec<u8>, EncodeError> {
+pub fn encode_all_given(msg: Vec<u8>, msg_type: &str, mac: Option<Vec<u8>>,
+                        time: u64, msg_format: MsgFormat)
+-> Result<Vec<u8>, EncodeError> {
     let p = (msg, msg_type, mac, time);
     match msg_format {
         MsgFormat::Json => msg_json::to_json_all_given(p.0, p.1, p.2, p.3),
@@ -281,7 +285,8 @@ pub fn decode_cache_msg(msg: Vec<u8>, format: MsgFormat) -> Result<CacheMsg, Dec
     }
 }
 
-pub fn encode_bool_msg(val: bool, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat)
+pub fn encode_bool_msg(val: bool, topic: &str, policy: MsgPolicy,
+                        key: Option<[u8;16]>, msg_format: MsgFormat)
 -> Result<Vec<u8>, EncodeError> {
     let time = get_time_in_millis();
     let p = (val, topic, policy, key, Some(time));
@@ -291,7 +296,8 @@ pub fn encode_bool_msg(val: bool, topic: &str, policy: MsgPolicy, key: Option<[u
     }
 }
 
-pub fn encode_u8_msg(val: u8, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat)
+pub fn encode_u8_msg(val: u8, topic: &str, policy: MsgPolicy,
+                        key: Option<[u8;16]>, msg_format: MsgFormat)
 -> Result<Vec<u8>, EncodeError> {
     let time = get_time_in_millis();
     let p = (val, topic, policy, key, Some(time));
@@ -301,7 +307,8 @@ pub fn encode_u8_msg(val: u8, topic: &str, policy: MsgPolicy, key: Option<[u8;16
     }
 }
 
-pub fn encode_u32_msg(val: u32, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat)
+pub fn encode_u32_msg(val: u32, topic: &str, policy: MsgPolicy,
+                        key: Option<[u8;16]>, msg_format: MsgFormat)
 -> Result<Vec<u8>, EncodeError> {
     let time = get_time_in_millis();
     let p = (val, topic, policy, key, Some(time));
@@ -311,7 +318,8 @@ pub fn encode_u32_msg(val: u32, topic: &str, policy: MsgPolicy, key: Option<[u8;
     }
 }
 
-pub fn encode_bytes_msg(val: Vec<u8>, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat)
+pub fn encode_bytes_msg(val: Vec<u8>, topic: &str, policy: MsgPolicy,
+                        key: Option<[u8;16]>, msg_format: MsgFormat)
 -> Result<Vec<u8>, EncodeError> {
     let time = get_time_in_millis();
     let p = (val, topic, policy, key, Some(time));
@@ -321,7 +329,8 @@ pub fn encode_bytes_msg(val: Vec<u8>, topic: &str, policy: MsgPolicy, key: Optio
     }
 }
 
-pub fn encode_bytes_vec_msg(val: Vec<Vec<u8>>, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat)
+pub fn encode_bytes_vec_msg(val: Vec<Vec<u8>>, topic: &str, policy: MsgPolicy,
+                            key: Option<[u8;16]>, msg_format: MsgFormat)
 -> Result<Vec<u8>, EncodeError> {
     let time = get_time_in_millis();
     let p = (val, topic, policy, key, Some(time));
@@ -331,7 +340,8 @@ pub fn encode_bytes_vec_msg(val: Vec<Vec<u8>>, topic: &str, policy: MsgPolicy, k
     }
 }
 
-pub fn encode_sub_cache_msg(number: Option<u32>, filters: Vec<Vec<u8>>, topic: &str, policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat)
+pub fn encode_sub_cache_msg(number: Option<u32>, filters: Vec<Vec<u8>>, topic: &str,
+                            policy: MsgPolicy, key: Option<[u8;16]>, msg_format: MsgFormat)
 -> Result<Vec<u8>, EncodeError> {
     let time = get_time_in_millis();
     let p = (number, filters, topic, policy, key, Some(time));
@@ -356,7 +366,8 @@ pub fn encrypt(msg_type: &str, time: u64, msg: &Vec<u8>, key: &[u8]) -> (Vec<u8>
 }
 
 /// decrypt with modified crate crypto
- pub fn decrypt(mac: &Vec<u8>, time: u64, msg_type: &String, msg: &Vec<u8>, key: [u8;16]) -> (bool, Vec<u8>) {
+ pub fn decrypt(mac: &Vec<u8>, time: u64, msg_type: &String, msg: &Vec<u8>, key: [u8;16])
+-> (bool, Vec<u8>) {
     let nonce = produce_nonce(time, msg_type.as_str());
     //  aad: includes msg_type and timestamp
     let mut aad: Vec<u8> = vec!();
@@ -394,12 +405,14 @@ pub fn validate(mac: &Vec<u8>, time: u64, msg_type: &String, msg: &Vec<u8>, key:
 
 pub fn validate_cache_msg(cache_msg: &CacheMsg, key: [u8;16]) -> bool {
     if cache_msg.mac.is_none() || cache_msg.time.is_none() { return false }
-    validate(&cache_msg.mac.clone().unwrap(), cache_msg.time.unwrap(), &cache_msg.msg_type, &cache_msg.msg, key)
+    validate(&cache_msg.mac.clone().unwrap(), cache_msg.time.unwrap(),
+                &cache_msg.msg_type, &cache_msg.msg, key)
 }
 
 pub fn decrypt_cache_msg(cache_msg: &CacheMsg, key: [u8;16]) -> (bool, Vec<u8>) {
     if cache_msg.mac.is_none() || cache_msg.time.is_none() { return (false, vec!()) }
-    decrypt(&cache_msg.mac.clone().unwrap(), cache_msg.time.unwrap(), &cache_msg.msg_type, &cache_msg.msg, key)
+    decrypt(&cache_msg.mac.clone().unwrap(), cache_msg.time.unwrap(),
+            &cache_msg.msg_type, &cache_msg.msg, key)
 }
 
 pub fn decode_bytes_vec_msg(msg: Vec<u8>, msg_format: MsgFormat)

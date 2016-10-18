@@ -8,35 +8,40 @@ use collections::vec::Vec;
 use core_protobuf::{ Message, MessageStatic, parse_from_bytes, ProtobufError, RepeatedField };
 
 
-pub fn bool_msg(val: bool, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
+pub fn bool_msg(val: bool, topic: &str, msg_policy: MsgPolicy,
+                key: Option<[u8;16]>, time: Option<u64>)
 -> Result<Vec<u8>, EncodeError> {
     let mut bool_msg = pbmsgs::BoolMsg::new();
     bool_msg.set_val(val);
     to_proto(topic, &bool_msg, None, msg_policy, key, time)
 }
 
-pub fn u8_msg(val: u8, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
+pub fn u8_msg(val: u8, topic: &str, msg_policy: MsgPolicy,
+                key: Option<[u8;16]>, time: Option<u64>)
 -> Result<Vec<u8>, EncodeError> {
     let mut u8_msg = pbmsgs::U8Msg::new();
     u8_msg.set_val(val as u32);
     to_proto(topic, &u8_msg, None, msg_policy, key, time)
 }
 
-pub fn u32_msg(val: u32, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
+pub fn u32_msg(val: u32, topic: &str, msg_policy: MsgPolicy,
+                key: Option<[u8;16]>, time: Option<u64>)
 -> Result<Vec<u8>, EncodeError> {
     let mut u32_msg = pbmsgs::U32Msg::new();
     u32_msg.set_val(val);
     to_proto(topic, &u32_msg, None, msg_policy, key, time)
 }
 
-pub fn bytes_msg(val: Vec<u8>, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
+pub fn bytes_msg(val: Vec<u8>, topic: &str, msg_policy: MsgPolicy,
+                key: Option<[u8;16]>, time: Option<u64>)
 -> Result<Vec<u8>, EncodeError> {
     let mut bytes_msg = pbmsgs::BytesMsg::new();
     bytes_msg.set_val(val);
     to_proto(topic, &bytes_msg, None, msg_policy, key, time)
 }
 
-pub fn bytes_vec_msg(val: Vec<Vec<u8>>, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
+pub fn bytes_vec_msg(val: Vec<Vec<u8>>, topic: &str, msg_policy: MsgPolicy,
+                    key: Option<[u8;16]>, time: Option<u64>)
 -> Result<Vec<u8>, EncodeError> {
     let mut bytes_vec_msg = pbmsgs::BytesVecMsg::new();
     let repeated = RepeatedField::from_vec(val);
@@ -44,7 +49,8 @@ pub fn bytes_vec_msg(val: Vec<Vec<u8>>, topic: &str, msg_policy: MsgPolicy, key:
     to_proto(topic, &bytes_vec_msg, None, msg_policy, key, time)
 }
 
-pub fn sub_cache_msg(number: Option<u32>, filters: Vec<Vec<u8>>, topic: &str, msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
+pub fn sub_cache_msg(number: Option<u32>, filters: Vec<Vec<u8>>, topic: &str,
+                    msg_policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
 -> Result<Vec<u8>, EncodeError> {
     let mut sub_cache_msg = pbmsgs::SubCacheMsg::new();
     if let Some(n) = number { sub_cache_msg.set_number(n) };
@@ -53,7 +59,8 @@ pub fn sub_cache_msg(number: Option<u32>, filters: Vec<Vec<u8>>, topic: &str, ms
     to_proto(topic, &sub_cache_msg, None, msg_policy, key, time)
 }
 
-pub fn to_proto_all_given(msg: Vec<u8>, msg_type: &str, mac: Option<Vec<u8>>, time: u64) -> Result<Vec<u8>, EncodeError> {
+pub fn to_proto_all_given(msg: Vec<u8>, msg_type: &str, mac: Option<Vec<u8>>, time: u64)
+-> Result<Vec<u8>, EncodeError> {
     let mut result = pbmsgs::CacheMsg::new();
     result.set_msg_type(msg_type.to_string());
     result.set_msg(msg);
@@ -63,13 +70,15 @@ pub fn to_proto_all_given(msg: Vec<u8>, msg_type: &str, mac: Option<Vec<u8>>, ti
 }
 
 
-pub fn to_proto<M : Message + MessageStatic>(msg_type: &str, msg: &M, client_id: Option<u32>, policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
+pub fn to_proto<M : Message + MessageStatic>(msg_type: &str, msg: &M, client_id: Option<u32>,
+                                        policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
 -> Result<Vec<u8>, EncodeError> {
     let msg_bytes = msg.write_to_bytes().unwrap();
     to_proto_from_bytes_msg(msg_type, msg_bytes, client_id, policy, key, time)
 }
 
-pub fn to_proto_from_bytes_msg(msg_type: &str, msg: Vec<u8>, client_id: Option<u32>, policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
+pub fn to_proto_from_bytes_msg(msg_type: &str, msg: Vec<u8>, client_id: Option<u32>,
+                                policy: MsgPolicy, key: Option<[u8;16]>, time: Option<u64>)
     -> Result<Vec<u8>, EncodeError> {
     let mut result = pbmsgs::CacheMsg::new();
     result.set_msg_type(msg_type.to_string());
@@ -86,12 +95,14 @@ pub fn to_proto_from_bytes_msg(msg_type: &str, msg: Vec<u8>, client_id: Option<u
             None
         },
         MsgPolicy::Authenticated => {
-            if key.is_none() { return Err( EncodeError { description: "No key given for MAC calculation.".to_string() })}
+            if key.is_none() { return Err(EncodeError { description:
+                                            "No key given for MAC calculation.".to_string() })}
             msg_body = msg;
             Some(super::authenticate(msg_type, time, &msg_body, &key.unwrap()))
         },
         MsgPolicy::Encrypted => {
-            if key.is_none() { return Err( EncodeError { description: "No key given for encryption.".to_string() })}
+            if key.is_none() { return Err( EncodeError { description:
+                                            "No key given for encryption.".to_string() })}
             let plain_msg_body = msg;
             let (output, mac) = super::encrypt(msg_type, time, &plain_msg_body, &key.unwrap());
             msg_body = output;
