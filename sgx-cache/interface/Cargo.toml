@@ -1,6 +1,4 @@
 [package]
 name = "interface"
 version = "0.1.0"
-authors = ["stefan"]
-
-[dependencies]
+authors = ["Stefan Wendt <stefanwendt@posteo.de>"]
