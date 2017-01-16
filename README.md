@@ -1,5 +1,11 @@
 # README - Usage manual for the source code
 
+## Thesis Abstract
+Services in a publish/subscribe system often rely on information published by one or more producers. After a restart of such a service the stable state is only re-established with the application of a number of consecutive values to the input procedure. Conventionally, the recovery routine includes the subscription to all required topics and waiting for the reception of the specified number of values. This waiting time could be reduced significantly by a caching service, which also subscribes to the topics, stores the messages and publishes them on demand.
+
+The complexity of distributed systems like the electronic part of an automobile increases and includes the option to exchange sensors or add new control units. Moreover, these formerly closed systems are interconnected and integrated into the internet. This trend intensifies the demand of security precautions. One approach is to enhance messages in the publish/subscribe system with message authentication codes. Furthermore, microservices could utilize the Intel Software Guard Extension (SGX), which provide the possibility to protect the confidentiality and integrity of application logic and data inside an enclave.
+
+This thesis develops the concept of a enclave-protected caching service for a publish/subscribe system. A prototype of the cache is implemented in the systems programming language Rust. Finally, experiments evaluate its capability to speed up the recovery process of stateful services and its performance.
 
 ## Requirements
 ### SGX
